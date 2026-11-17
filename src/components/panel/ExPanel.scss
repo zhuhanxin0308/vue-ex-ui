@@ -1,57 +1,86 @@
 @use '../../styles/mixins' as *;
 @use '../../styles/tokens' as *;
+@use '../../styles/functions' as *;
 
 // ============================================================================
-// Panel 面板组件样式
+// Panel 面板组件样式 - 赛博朋克 HUD 表面层级
 // ============================================================================
 
 .ex-panel {
+  --ex-panel-border-color: var(--ex-color-border-primary);
+
   position: relative;
   background: var(--ex-color-bg-secondary);
-  border-radius: var(--ex-radius-lg);
+  border-radius: var(--ex-radius-none);
   overflow: hidden;
-  @include transition(all);
+  @include chamfer(var(--ex-chamfer-md));
+  @include transition((transform, border-color, filter, background-color));
 
-  // 边框
-  &:not(.ex-panel--borderless) {
-    border: 1px solid var(--ex-color-border-primary);
+  // 顶部 HUD 光带（加载态由旋转环独占 ::before）
+  &:not(.ex-panel--loading)::before {
+    position: absolute;
+    top: 0;
+    right: var(--ex-spacing-4);
+    left: var(--ex-spacing-4);
+    z-index: 2;
+    height: 1px;
+    content: '';
+    background: linear-gradient(
+      90deg,
+      transparent,
+      var(--ex-color-primary),
+      var(--ex-color-cyber-magenta),
+      transparent
+    );
+    opacity: 0.7;
+    pointer-events: none;
   }
 
-  // 阴影变体
+  // 边框与 45° 斜切面描边补全（加载态由半透明遮罩独占 ::after）
+  &:not(.ex-panel--borderless) {
+    border: 1px solid var(--ex-panel-border-color);
+  }
+
+  &:not(.ex-panel--borderless):not(.ex-panel--loading)::after {
+    @include chamfer-bevel(var(--ex-chamfer-md), var(--ex-panel-border-color), 1px);
+  }
+
+  // 阴影变体（切角轮廓统一使用 drop-shadow 替代会被 clip-path 裁切的 box-shadow）
   &--shadow-none {
     box-shadow: none;
+    filter: none;
   }
 
   &--shadow-sm {
-    box-shadow: var(--ex-shadow-sm);
+    filter: component-var(card, filter-shadow-sm);
   }
 
   &--shadow-base {
-    box-shadow: var(--ex-shadow-base);
+    filter: component-var(card, filter-shadow-base);
   }
 
   &--shadow-md {
-    box-shadow: var(--ex-shadow-md);
+    filter: component-var(card, filter-shadow-md);
   }
 
   &--shadow-lg {
-    box-shadow: var(--ex-shadow-lg);
+    filter: component-var(card, filter-shadow-lg);
   }
 
   &--shadow-xl {
-    box-shadow: var(--ex-shadow-xl);
+    filter: component-var(card, filter-shadow-xl);
   }
 
   &--shadow-neon {
-    @include neon-glow('blue', 'sm');
+    filter: drop-shadow(0 0 6px var(--ex-color-primary-alpha-30));
   }
 
-  // 可悬�?
+  // 可悬停
   &--hoverable {
-    &:hover {
-      transform: translateY(-4px);
-      box-shadow: var(--ex-shadow-lg);
-      @include neon-glow('blue', 'md');
+    &:hover:not(.ex-panel--loading) {
+      transform: translateY(-2px);
+      filter: component-var(card, filter-shadow-lg)
+        drop-shadow(0 0 8px var(--ex-color-primary-alpha-30));
     }
   }
 
@@ -76,7 +105,7 @@
     border: 0;
   }
 
-  // 加载态：遮罩 + 居中旋转指示器（更明显）
+  // 加载态：遮罩 + 居中旋转指示器
   &--loading {
     pointer-events: none;
 
@@ -111,6 +140,7 @@
 
   // 类型变体
   &--primary {
+    --ex-panel-border-color: var(--ex-color-neon-blue-500);
     border-color: var(--ex-color-neon-blue-500);
 
     .ex-panel__header {
@@ -128,6 +158,7 @@
   }
 
   &--success {
+    --ex-panel-border-color: var(--ex-color-success);
     border-color: var(--ex-color-success);
 
     .ex-panel__header {
@@ -145,6 +176,7 @@
   }
 
   &--warning {
+    --ex-panel-border-color: var(--ex-color-warning);
     border-color: var(--ex-color-warning);
 
     .ex-panel__header {
@@ -162,6 +194,7 @@
   }
 
   &--danger {
+    --ex-panel-border-color: var(--ex-color-danger);
     border-color: var(--ex-color-danger);
 
     .ex-panel__header {
@@ -179,6 +212,7 @@
   }
 
   &--info {
+    --ex-panel-border-color: var(--ex-color-info);
     border-color: var(--ex-color-info);
 
     .ex-panel__header {
@@ -272,7 +306,7 @@
   padding: var(--ex-spacing-4) var(--ex-spacing-6);
   background: var(--ex-color-bg-elevated);
   border-bottom: 1px solid var(--ex-color-border-primary);
-  @include transition(all);
+  @include transition((background-color, border-color, color));
 }
 
 // 标题区域
@@ -305,14 +339,16 @@
 // 标题文本
 .ex-panel__title-text {
   margin: 0;
+  font-family: var(--ex-font-primary);
   font-size: var(--ex-text-lg);
   font-weight: var(--ex-font-semibold);
+  letter-spacing: var(--ex-tracking-wide);
   color: var(--ex-color-text-primary);
   line-height: var(--ex-leading-tight);
   @include text-truncate;
 }
 
-// 副标�?
+// 副标题
 .ex-panel__subtitle {
   margin: var(--ex-spacing-1) 0 0;
   font-size: var(--ex-text-sm);
@@ -395,7 +431,7 @@
 }
 
 // ============================================================================
-// 无障碍支�?
+// 无障碍支持
 // ============================================================================
 
 @media (prefers-reduced-motion: reduce) {
@@ -406,6 +442,10 @@
 
   .ex-panel--hoverable:hover {
     transform: none;
+  }
+
+  .ex-panel--loading::before {
+    animation: none;
   }
 }
 

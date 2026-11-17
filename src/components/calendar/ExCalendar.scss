@@ -43,17 +43,12 @@
     &:hover {
       border-color: var(--ex-color-primary);
       background: var(--ex-color-primary-alpha-10);
+      color: var(--ex-color-primary);
       @include neon-glow('blue', 'sm');
-
-      img {
-        filter: brightness(0) saturate(100%) invert(70%) sepia(100%) saturate(1000%)
-          hue-rotate(180deg) brightness(1.2);
-      }
     }
 
     img {
-      filter: brightness(0) saturate(100%) invert(70%) sepia(10%) saturate(500%) hue-rotate(180deg);
-      @include transition(filter);
+      display: block;
     }
   }
 
@@ -460,14 +455,15 @@
     font-weight: var(--ex-font-semibold);
   }
 
-  // 签到标记
+  // 签到标记（采用语义成功色替代位图色相滤镜）
   &__check-in {
     display: flex;
     align-items: center;
     justify-content: center;
+    color: var(--ex-color-success);
 
     img {
-      filter: brightness(0) saturate(100%) invert(60%) sepia(100%) saturate(500%) hue-rotate(100deg);
+      display: block;
     }
   }
 

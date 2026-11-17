@@ -17,14 +17,11 @@
   z-index: var(--ex-z-tooltip, 1090);
   pointer-events: auto;
 
-  // 霓虹边框效果
-  &__border {
+  // 霓虹内发光边框层（修复原先 &__border 错位编译为 .ex-tooltip__popper__border 的问题）
+  .ex-tooltip__border {
     position: absolute;
-    top: 0;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    border-radius: var(--ex-radius-base);
+    inset: 0;
+    border-radius: inherit;
     pointer-events: none;
     opacity: 0.8;
   }
@@ -53,7 +50,6 @@
 
     .ex-tooltip__border {
       box-shadow: inset 0 0 10px var(--ex-color-primary-alpha-30);
-      border: 1px solid var(--ex-color-primary);
     }
 
     .ex-tooltip__arrow {
@@ -71,8 +67,7 @@
     box-shadow: var(--ex-shadow-lg);
 
     .ex-tooltip__border {
-      box-shadow: inset 0 0 10px var(--ex-color-primary-alpha-10);
-      border: 1px solid var(--ex-color-primary);
+      box-shadow: inset 0 0 8px var(--ex-color-primary-alpha-08);
     }
 
     .ex-tooltip__arrow {
@@ -186,7 +181,7 @@
   opacity: 0;
 }
 
-// 响应式设�?
+// 响应式设计
 @include desktop-first(md) {
   .ex-tooltip__popper {
     max-width: calc(100vw - 32px);
@@ -194,7 +189,7 @@
   }
 }
 
-// 无障碍支�?
+// 无障碍支持
 @media (prefers-reduced-motion: reduce) {
   .ex-tooltip-fade-enter-active,
   .ex-tooltip-fade-leave-active {

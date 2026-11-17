@@ -1,4 +1,5 @@
 @use '../../styles/tokens' as *;
+@use '../../styles/mixins' as *;
 
 // ============================================================================
 // Descriptions 描述列表
@@ -89,20 +90,22 @@
   }
 
   // ============================================================================
-  // 带边框
+  // 带边框（统一左上 + 右下赛博切角方向并补全斜切面描边）
   // ============================================================================
   &--border {
+    .ex-descriptions__body {
+      position: relative;
+      @include chamfer(var(--ex-chamfer-md));
+
+      &::after {
+        @include chamfer-bevel(var(--ex-chamfer-md), var(--ex-color-border-primary), 1px);
+        inset: 0;
+      }
+    }
+
     .ex-descriptions__table {
       border: 1px solid var(--ex-color-border-primary);
-      // 赛博朋克切角
-      clip-path: polygon(
-        0 0,
-        calc(100% - 10px) 0,
-        100% 10px,
-        100% 100%,
-        10px 100%,
-        0 calc(100% - 10px)
-      );
+      @include chamfer(var(--ex-chamfer-md));
     }
 
     .ex-descriptions__cell {

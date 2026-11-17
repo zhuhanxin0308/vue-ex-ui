@@ -97,16 +97,17 @@
 
     &--success {
       color: var(--ex-color-success);
-      @include optimized-neon-glow('blue', 'sm');
+      filter: drop-shadow(0 0 4px var(--ex-color-success-alpha-40));
     }
 
     &--warning {
       color: var(--ex-color-warning);
+      filter: drop-shadow(0 0 4px var(--ex-color-warning-alpha-30));
     }
 
     &--error {
       color: var(--ex-color-error);
-      @include optimized-neon-glow('pink', 'sm');
+      filter: drop-shadow(0 0 4px var(--ex-color-error-alpha-40));
     }
 
     &--validating {
@@ -144,7 +145,7 @@
     border-inline-start: 2px solid var(--ex-color-error);
     background: var(--ex-color-error-alpha-10);
     border-radius: var(--ex-radius-base);
-    @include optimized-neon-glow('pink', 'sm');
+    box-shadow: 0 0 8px var(--ex-color-error-alpha-20);
     @include safe-transition(all);
     animation: slideDown 0.2s ease-out;
   }
@@ -224,7 +225,7 @@
   }
 
   // ============================================================================
-  // 验证状- 游戏主题增强
+  // 验证状态 - 统一命中所有表单控件真实外框壳体并匹配语义发光色
   // ============================================================================
 
   &.is-success {
@@ -233,13 +234,30 @@
     }
 
     .ex-form-item__control {
-      input,
-      textarea,
-      select,
-      :deep(.ex-select__trigger),
-      :deep(.ex-cascader__input) {
+      :deep(.ex-input__inner) {
+        --ex-input-border-color: var(--ex-color-success);
         border-color: var(--ex-color-success);
-        @include optimized-neon-glow('blue', 'sm');
+        filter: drop-shadow(0 0 4px var(--ex-color-success-alpha-20));
+      }
+
+      :deep(.ex-input__prepend),
+      :deep(.ex-input__append) {
+        border-color: var(--ex-color-success);
+      }
+
+      input:not(.ex-input__control):not(.ex-number-input__input):not(.ex-select__input),
+      textarea:not(.ex-input__control),
+      select,
+      :deep(.ex-number-input),
+      :deep(.ex-select__trigger),
+      :deep(.ex-cascader__input),
+      :deep(.ex-cascader--multiple .ex-cascader__input-wrapper),
+      :deep(.ex-tree-select__trigger),
+      :deep(.ex-datetime-picker__input),
+      :deep(.ex-time-picker__trigger),
+      :deep(.ex-color-picker__trigger) {
+        border-color: var(--ex-color-success);
+        box-shadow: 0 0 6px var(--ex-color-success-alpha-20);
       }
     }
   }
@@ -250,11 +268,28 @@
     }
 
     .ex-form-item__control {
-      input,
-      textarea,
+      :deep(.ex-input__inner) {
+        --ex-input-border-color: var(--ex-color-warning);
+        border-color: var(--ex-color-warning);
+        filter: drop-shadow(0 0 4px var(--ex-color-warning-alpha-20));
+      }
+
+      :deep(.ex-input__prepend),
+      :deep(.ex-input__append) {
+        border-color: var(--ex-color-warning);
+      }
+
+      input:not(.ex-input__control):not(.ex-number-input__input):not(.ex-select__input),
+      textarea:not(.ex-input__control),
       select,
+      :deep(.ex-number-input),
       :deep(.ex-select__trigger),
-      :deep(.ex-cascader__input) {
+      :deep(.ex-cascader__input),
+      :deep(.ex-cascader--multiple .ex-cascader__input-wrapper),
+      :deep(.ex-tree-select__trigger),
+      :deep(.ex-datetime-picker__input),
+      :deep(.ex-time-picker__trigger),
+      :deep(.ex-color-picker__trigger) {
         border-color: var(--ex-color-warning);
       }
     }
@@ -266,13 +301,30 @@
     }
 
     .ex-form-item__control {
-      input,
-      textarea,
-      select,
-      :deep(.ex-select__trigger),
-      :deep(.ex-cascader__input) {
+      :deep(.ex-input__inner) {
+        --ex-input-border-color: var(--ex-color-error);
         border-color: var(--ex-color-error);
-        @include optimized-neon-glow('pink', 'sm');
+        filter: drop-shadow(0 0 4px var(--ex-color-error-alpha-20));
+      }
+
+      :deep(.ex-input__prepend),
+      :deep(.ex-input__append) {
+        border-color: var(--ex-color-error);
+      }
+
+      input:not(.ex-input__control):not(.ex-number-input__input):not(.ex-select__input),
+      textarea:not(.ex-input__control),
+      select,
+      :deep(.ex-number-input),
+      :deep(.ex-select__trigger),
+      :deep(.ex-cascader__input),
+      :deep(.ex-cascader--multiple .ex-cascader__input-wrapper),
+      :deep(.ex-tree-select__trigger),
+      :deep(.ex-datetime-picker__input),
+      :deep(.ex-time-picker__trigger),
+      :deep(.ex-color-picker__trigger) {
+        border-color: var(--ex-color-error);
+        box-shadow: 0 0 6px var(--ex-color-error-alpha-20);
       }
     }
   }

@@ -177,10 +177,6 @@
       background: var(--ex-color-bg-hover);
       color: var(--ex-color-danger);
     }
-
-    img {
-      filter: brightness(0) invert(1);
-    }
   }
 
   // 箭头
@@ -192,10 +188,6 @@
 
     &--open {
       transform: rotate(180deg);
-    }
-
-    img {
-      filter: brightness(0) invert(1);
     }
   }
 
@@ -438,10 +430,6 @@
     align-items: center;
     margin-left: var(--ex-spacing-2);
     color: var(--ex-color-text-tertiary);
-
-    img {
-      filter: brightness(0) invert(1);
-    }
   }
 
   // 尺寸

@@ -8,15 +8,22 @@
 // ============================================================================
 
 .ex-alert {
+  --ex-alert-border-color: transparent;
+
   position: relative;
   display: flex;
   align-items: flex-start;
   padding: var(--ex-spacing-4);
   // 赛博朋克切角（左上 + 右下斜切）
   @include chamfer(var(--ex-chamfer-md));
-  border: 2px solid transparent;
+  border: 2px solid var(--ex-alert-border-color);
   @include safe-transition(all);
   @include optimized-text-rendering;
+
+  // 补齐切角警告条在 45° 斜切面处的 2px 描边
+  &:not(.ex-alert--borderless)::after {
+    @include chamfer-bevel(var(--ex-chamfer-md), var(--ex-alert-border-color), 2px);
+  }
 
   // ============================================================================
   // 图标
@@ -94,7 +101,7 @@
     @include safe-transition(all);
 
     &:hover {
-      background: rgba(var(--ex-color-white-rgb), 0.1);
+      background: var(--ex-color-primary-alpha-15);
       transform: scale(1.1);
     }
 
@@ -188,22 +195,28 @@
   }
 
   // ============================================================================
-  // 类型变体 - 游戏主题增强
+  // 类型变体 - 游戏主题增强（切角容器统一采用 drop-shadow 沿轮廓投影）
   // ============================================================================
 
+  &--filled .ex-alert__close:hover {
+    background: var(--ex-color-black-alpha-15);
+  }
+
   &--success {
+    --ex-alert-border-color: var(--ex-color-success);
+
     &.ex-alert--standard {
       background: rgba(var(--ex-color-success-rgb), 0.1);
       border-color: var(--ex-color-success);
       color: var(--ex-color-success);
-      @include optimized-neon-glow('blue', 'sm');
+      filter: drop-shadow(0 0 6px var(--ex-color-success-alpha-30));
     }
 
     &.ex-alert--filled {
       background: linear-gradient(135deg, var(--ex-color-success), var(--ex-color-success-hover));
       border-color: var(--ex-color-success);
       color: var(--ex-color-text-inverse);
-      @include optimized-neon-glow('blue', 'md');
+      filter: drop-shadow(0 0 10px var(--ex-color-success-alpha-30));
     }
 
     &.ex-alert--outlined {
@@ -214,11 +227,13 @@
   }
 
   &--info {
+    --ex-alert-border-color: var(--ex-color-neon-blue-500);
+
     &.ex-alert--standard {
       background: rgba(var(--ex-color-neon-blue-500-rgb), 0.1);
       border-color: var(--ex-color-neon-blue-500);
       color: var(--ex-color-neon-blue-500);
-      @include optimized-neon-glow('blue', 'sm');
+      @include chamfer-glow('blue', 'sm');
     }
 
     &.ex-alert--filled {
@@ -229,7 +244,7 @@
       );
       border-color: var(--ex-color-neon-blue-500);
       color: var(--ex-color-text-inverse);
-      @include optimized-neon-glow('blue', 'md');
+      @include chamfer-glow('blue', 'md');
     }
 
     &.ex-alert--outlined {
@@ -240,18 +255,20 @@
   }
 
   &--warning {
+    --ex-alert-border-color: var(--ex-color-warning);
+
     &.ex-alert--standard {
       background: rgba(var(--ex-color-warning-rgb), 0.1);
       border-color: var(--ex-color-warning);
       color: var(--ex-color-warning);
-      box-shadow: 0 0 10px rgba(var(--ex-color-warning-rgb), 0.2);
+      filter: drop-shadow(0 0 6px rgba(var(--ex-color-warning-rgb), 0.25));
     }
 
     &.ex-alert--filled {
       background: linear-gradient(135deg, var(--ex-color-warning), var(--ex-color-warning));
       border-color: var(--ex-color-warning);
       color: var(--ex-color-text-inverse);
-      box-shadow: 0 0 15px rgba(var(--ex-color-warning-rgb), 0.3);
+      filter: drop-shadow(0 0 10px rgba(var(--ex-color-warning-rgb), 0.35));
     }
 
     &.ex-alert--outlined {
@@ -262,11 +279,13 @@
   }
 
   &--error {
+    --ex-alert-border-color: var(--ex-color-neon-pink-500);
+
     &.ex-alert--standard {
       background: rgba(var(--ex-color-neon-pink-500-rgb), 0.1);
       border-color: var(--ex-color-neon-pink-500);
       color: var(--ex-color-neon-pink-500);
-      @include optimized-neon-glow('pink', 'sm');
+      @include chamfer-glow('pink', 'sm');
     }
 
     &.ex-alert--filled {
@@ -277,7 +296,7 @@
       );
       border-color: var(--ex-color-neon-pink-500);
       color: var(--ex-color-text-inverse);
-      @include optimized-neon-glow('pink', 'md');
+      @include chamfer-glow('pink', 'md');
     }
 
     &.ex-alert--outlined {
@@ -303,6 +322,7 @@
   }
 
   &--borderless {
+    --ex-alert-border-color: transparent;
     border-color: transparent;
   }
 

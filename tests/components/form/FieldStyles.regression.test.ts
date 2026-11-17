@@ -10,6 +10,16 @@ import ExSwitch from '../../../src/components/switch/ExSwitch.vue';
 import ExCascader from '../../../src/components/cascader/ExCascader.vue';
 import ExDateTimePicker from '../../../src/components/datetime-picker/ExDateTimePicker.vue';
 import ExRate from '../../../src/components/rate/ExRate.vue';
+import ExFormItem from '../../../src/components/form/ExFormItem.vue';
+import ExInput from '../../../src/components/input/ExInput.vue';
+import ExNumberInput from '../../../src/components/number-input/ExNumberInput.vue';
+import ExTreeSelect from '../../../src/components/tree-select/ExTreeSelect.vue';
+import ExTimePicker from '../../../src/components/time-picker/ExTimePicker.vue';
+import ExColorPicker from '../../../src/components/color-picker/ExColorPicker.vue';
+import ExTooltip from '../../../src/components/tooltip/ExTooltip.vue';
+import ExPopover from '../../../src/components/popover/ExPopover.vue';
+import ExNotification from '../../../src/components/notification/ExNotification.vue';
+import ExConfigProvider from '../../../src/components/config-provider/ExConfigProvider.vue';
 
 const wrappers: Array<{ unmount(): void }> = [];
 afterEach(() => wrappers.splice(0).forEach(wrapper => wrapper.unmount()));
@@ -89,5 +99,116 @@ describe('字段实际 DOM 与公开样式契约', () => {
     expect(wrapper.get<HTMLElement>('.is-half .ex-rate__icon--active').element.style.clipPath).toBe(
       'inset(0 50% 0 0)'
     );
+  });
+
+  it.each(['success', 'warning', 'error'] as const)(
+    'FormItem 的 %s 校验边框规则精准命中各控件壳体且排除内部无边框 input',
+    status => {
+      const wrapper = mount({
+        components: {
+          ExFormItem,
+          ExInput,
+          ExNumberInput,
+          ExTreeSelect,
+          ExDateTimePicker,
+          ExTimePicker,
+          ExColorPicker,
+        },
+        template: `
+          <ExFormItem label="字段" validate-status="${status}">
+            <div>
+              <ExInput model-value="abc" />
+              <ExNumberInput :model-value="12" />
+              <ExTreeSelect :data="[]" />
+              <ExDateTimePicker />
+              <ExTimePicker />
+              <ExColorPicker />
+            </div>
+          </ExFormItem>
+        `,
+      });
+      wrappers.push(wrapper);
+
+      const formItemEl = wrapper.get('.ex-form-item').element;
+      const scopeId = formItemEl.getAttributeNames().find(name => name.startsWith('data-v-'))!;
+      const selectors = selectorsForToken(
+        'src/components/form/ExFormItem.scss',
+        scopeId,
+        `var(--ex-color-${status})`
+      );
+
+      for (const shellSelector of [
+        '.ex-input__inner',
+        '.ex-number-input',
+        '.ex-tree-select__trigger',
+        '.ex-datetime-picker__input',
+        '.ex-time-picker__trigger',
+        '.ex-color-picker__trigger',
+      ]) {
+        const shell = wrapper.get(shellSelector).element;
+        expect(selectors.some(selector => shell.matches(selector))).toBe(true);
+      }
+
+      for (const innerSelector of ['.ex-input__control', '.ex-number-input__input']) {
+        const inner = wrapper.get(innerSelector).element;
+        expect(selectors.some(selector => inner.matches(selector))).toBe(false);
+      }
+    }
+  );
+
+  it('Tooltip 与 Popover 渲染后霓虹边框层保持绝对定位覆盖而非文档流块级占位', () => {
+    const tooltipScopeId = (ExTooltip as unknown as { __scopeId: string }).__scopeId;
+    const popoverScopeId = (ExPopover as unknown as { __scopeId: string }).__scopeId;
+    const tooltipSelectors = selectorsForToken(
+      'src/components/tooltip/ExTooltip.scss',
+      tooltipScopeId,
+      'absolute'
+    );
+    const popoverSelectors = selectorsForToken(
+      'src/components/popover/ExPopover.scss',
+      popoverScopeId,
+      'absolute'
+    );
+
+    const tooltipWrapper = mount(ExTooltip, {
+      props: { modelValue: true, content: '提示' },
+      slots: { default: '<button type="button">触发</button>' },
+      attachTo: document.body,
+    });
+    const popoverWrapper = mount(ExPopover, {
+      props: { modelValue: true, title: '标题', content: '详情' },
+      slots: { default: '<button type="button">触发</button>' },
+      attachTo: document.body,
+    });
+    wrappers.push(tooltipWrapper, popoverWrapper);
+
+    const tooltipBorder = document.body.querySelector('.ex-tooltip__border')!;
+    const popoverBorder = document.body.querySelector('.ex-popover__border')!;
+    expect(tooltipSelectors.some(selector => tooltipBorder.matches(selector))).toBe(true);
+    expect(popoverSelectors.some(selector => popoverBorder.matches(selector))).toBe(true);
+  });
+
+  it('禁用霓虹效果时 Notification 四种状态图标仍保持独立语义色规则', () => {
+    const scopeId = (ExNotification as unknown as { __scopeId: string }).__scopeId;
+
+    for (const type of ['info', 'success', 'warning', 'error'] as const) {
+      const wrapper = mount({
+        components: { ExConfigProvider, ExNotification },
+        template: `
+          <ExConfigProvider :neon-effect="false">
+            <ExNotification type="${type}" title="通知" content="内容" :duration="0" />
+          </ExConfigProvider>
+        `,
+      });
+      wrappers.push(wrapper);
+
+      const icon = wrapper.get(`.ex-notification__icon--${type}`).element;
+      const colorSelectors = selectorsForToken(
+        'src/components/notification/ExNotification.scss',
+        scopeId,
+        `var(--ex-color-${type})`
+      );
+      expect(colorSelectors.some(selector => icon.matches(selector))).toBe(true);
+    }
   });
 });

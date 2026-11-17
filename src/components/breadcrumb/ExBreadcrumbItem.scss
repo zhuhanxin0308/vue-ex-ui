@@ -140,7 +140,7 @@
       font-weight: var(--ex-font-semibold);
       background: var(--ex-color-bg-secondary);
       border-color: var(--ex-color-border-primary);
-      @include neon-glow('blue', 'xs');
+      @include neon-glow('blue', 'sm');
     }
   }
 

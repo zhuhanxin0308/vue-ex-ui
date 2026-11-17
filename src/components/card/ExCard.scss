@@ -7,6 +7,8 @@
 // ============================================================================
 
 .ex-card {
+  --ex-card-border-color: var(--ex-color-border-primary);
+
   position: relative;
   background: var(--ex-color-bg-secondary);
   border-radius: var(--ex-radius-none);
@@ -60,15 +62,20 @@
   }
 
   &.ex-holographic {
+    --ex-card-border-color: var(--ex-color-primary-alpha-30);
     border-color: var(--ex-color-primary-alpha-30);
     background: rgba(var(--ex-color-bg-tertiary-rgb), 0.32);
     backdrop-filter: blur(8px);
     filter: drop-shadow(0 0 8px var(--ex-color-primary-alpha-20));
   }
 
-  // 边框
+  // 边框与 45° 斜切面描边补全（终端变体已占用 ::after 绘制状态指示灯）
   &:not(.ex-card--borderless) {
-    border: 1px solid var(--ex-color-border-primary);
+    border: 1px solid var(--ex-card-border-color);
+  }
+
+  &:not(.ex-card--borderless):not(.ex-terminal)::after {
+    @include chamfer-bevel(var(--ex-chamfer-md), var(--ex-card-border-color), 1px);
   }
 
   // 阴影变体
@@ -156,6 +163,7 @@
 
   // 类型变体
   &--primary {
+    --ex-card-border-color: var(--ex-color-primary);
     border-color: var(--ex-color-primary);
     background: linear-gradient(
       135deg,
@@ -179,6 +187,7 @@
     }
 
     &.ex-card--hoverable:hover:not(.ex-card--loading) {
+      --ex-card-border-color: var(--ex-color-secondary);
       border-color: var(--ex-color-secondary);
       background: linear-gradient(
         135deg,
@@ -189,6 +198,7 @@
   }
 
   &--success {
+    --ex-card-border-color: var(--ex-color-success);
     border-color: var(--ex-color-success);
     background: linear-gradient(
       135deg,
@@ -212,11 +222,13 @@
     }
 
     &.ex-card--hoverable:hover:not(.ex-card--loading) {
+      --ex-card-border-color: var(--ex-color-primary);
       border-color: var(--ex-color-primary);
     }
   }
 
   &--warning {
+    --ex-card-border-color: var(--ex-color-warning);
     border-color: var(--ex-color-warning);
     background: linear-gradient(
       135deg,
@@ -240,11 +252,13 @@
     }
 
     &.ex-card--hoverable:hover:not(.ex-card--loading) {
+      --ex-card-border-color: var(--ex-color-secondary);
       border-color: var(--ex-color-secondary);
     }
   }
 
   &--danger {
+    --ex-card-border-color: var(--ex-color-danger);
     border-color: var(--ex-color-danger);
     background: linear-gradient(
       135deg,
@@ -268,11 +282,13 @@
     }
 
     &.ex-card--hoverable:hover:not(.ex-card--loading) {
+      --ex-card-border-color: var(--ex-color-neon-blue-500);
       border-color: var(--ex-color-neon-blue-500);
     }
   }
 
   &--info {
+    --ex-card-border-color: var(--ex-color-info);
     border-color: var(--ex-color-info);
     background: linear-gradient(
       135deg,
@@ -296,6 +312,7 @@
     }
 
     &.ex-card--hoverable:hover:not(.ex-card--loading) {
+      --ex-card-border-color: var(--ex-color-neon-pink-500);
       border-color: var(--ex-color-neon-pink-500);
     }
   }

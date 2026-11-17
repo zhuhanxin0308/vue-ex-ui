@@ -15,8 +15,9 @@
   }
 
   &__input {
+    box-sizing: border-box;
     width: 100%;
-    height: 36px;
+    height: var(--ex-input-height-md, 40px);
     padding: var(--ex-spacing-2) 60px var(--ex-spacing-2) var(--ex-spacing-3);
     color: var(--ex-color-text-primary);
     font-family: var(--ex-font-secondary);
@@ -394,7 +395,7 @@
   }
 
   &--small &__input {
-    height: 30px;
+    height: var(--ex-input-height-sm, 32px);
     font-size: var(--ex-text-sm);
   }
 
@@ -403,7 +404,7 @@
   }
 
   &--large &__input {
-    height: 44px;
+    height: var(--ex-input-height-lg, 48px);
     font-size: var(--ex-text-lg);
   }
 
@@ -437,6 +438,10 @@
 @include mobile {
   .ex-datetime-picker {
     max-width: 100%;
+
+    &__input {
+      min-height: var(--ex-input-touch-target, 44px);
+    }
 
     &__dropdown {
       right: 0;
