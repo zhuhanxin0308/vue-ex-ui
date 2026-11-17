@@ -61,12 +61,12 @@
     position: relative;
   }
 
-  // 徽章主体
+  // 徽章主体（统一使用双主题已校准的语义底色与 --ex-button-ink-on-bright 墨色）
   &__sup {
-    --ex-badge-start: var(--ex-color-neon-blue-500);
-    --ex-badge-end: var(--ex-color-neon-blue-600);
-    --ex-badge-hover-start: var(--ex-color-neon-blue-400);
-    --ex-badge-hover-end: var(--ex-color-neon-blue-500);
+    --ex-badge-start: var(--ex-color-primary);
+    --ex-badge-end: var(--ex-color-primary);
+    --ex-badge-hover-start: var(--ex-color-primary-hover);
+    --ex-badge-hover-end: var(--ex-color-primary-hover);
     --ex-badge-glow-rgb: var(--ex-color-neon-blue-500-rgb);
 
     position: relative;
@@ -85,7 +85,7 @@
     border: var(--ex-badge-border-width) solid var(--ex-badge-start);
     border-radius: var(--ex-badge-border-radius);
     background: linear-gradient(135deg, var(--ex-badge-start) 0%, var(--ex-badge-end) 100%);
-    color: var(--ex-color-text-inverse);
+    color: var(--ex-button-ink-on-bright);
     box-shadow:
       0 0 10px rgba(var(--ex-badge-glow-rgb), 0.3),
       inset 0 1px 0 var(--ex-color-white-alpha-20);
@@ -193,16 +193,16 @@
     }
 
     &--primary {
-      --ex-badge-start: var(--ex-color-neon-blue-500);
-      --ex-badge-end: var(--ex-color-neon-blue-600);
-      --ex-badge-hover-start: var(--ex-color-neon-blue-400);
-      --ex-badge-hover-end: var(--ex-color-neon-blue-500);
+      --ex-badge-start: var(--ex-color-primary);
+      --ex-badge-end: var(--ex-color-primary);
+      --ex-badge-hover-start: var(--ex-color-primary-hover);
+      --ex-badge-hover-end: var(--ex-color-primary-hover);
       --ex-badge-glow-rgb: var(--ex-color-neon-blue-500-rgb);
     }
 
     &--secondary {
       --ex-badge-start: var(--ex-color-neon-pink-500);
-      --ex-badge-end: var(--ex-color-neon-pink-600);
+      --ex-badge-end: var(--ex-color-neon-pink-500);
       --ex-badge-hover-start: var(--ex-color-neon-pink-400);
       --ex-badge-hover-end: var(--ex-color-neon-pink-500);
       --ex-badge-glow-rgb: var(--ex-color-neon-pink-500-rgb);
@@ -210,33 +210,33 @@
 
     &--success {
       --ex-badge-start: var(--ex-color-success);
-      --ex-badge-end: var(--ex-color-success-mid);
-      --ex-badge-hover-start: var(--ex-color-success);
-      --ex-badge-hover-end: var(--ex-color-success-dark);
+      --ex-badge-end: var(--ex-color-success);
+      --ex-badge-hover-start: var(--ex-color-success-hover);
+      --ex-badge-hover-end: var(--ex-color-success-hover);
       --ex-badge-glow-rgb: var(--ex-color-success-rgb);
     }
 
     &--warning {
       --ex-badge-start: var(--ex-color-warning);
-      --ex-badge-end: var(--ex-color-warning-hover);
-      --ex-badge-hover-start: var(--ex-color-warning);
-      --ex-badge-hover-end: var(--ex-color-warning-active);
+      --ex-badge-end: var(--ex-color-warning);
+      --ex-badge-hover-start: var(--ex-color-warning-hover);
+      --ex-badge-hover-end: var(--ex-color-warning-hover);
       --ex-badge-glow-rgb: var(--ex-color-warning-rgb);
     }
 
     &--danger {
       --ex-badge-start: var(--ex-color-danger);
-      --ex-badge-end: var(--ex-color-danger-mid);
-      --ex-badge-hover-start: var(--ex-color-danger);
-      --ex-badge-hover-end: var(--ex-color-danger-dark);
+      --ex-badge-end: var(--ex-color-danger);
+      --ex-badge-hover-start: var(--ex-color-danger-hover);
+      --ex-badge-hover-end: var(--ex-color-danger-hover);
       --ex-badge-glow-rgb: var(--ex-color-error-rgb);
     }
 
     &--info {
       --ex-badge-start: var(--ex-color-info);
-      --ex-badge-end: var(--ex-color-info-active);
-      --ex-badge-hover-start: var(--ex-color-info);
-      --ex-badge-hover-end: var(--ex-color-info-active);
+      --ex-badge-end: var(--ex-color-info);
+      --ex-badge-hover-start: var(--ex-color-info-hover);
+      --ex-badge-hover-end: var(--ex-color-info-hover);
       --ex-badge-glow-rgb: var(--ex-color-neon-blue-500-rgb);
     }
 

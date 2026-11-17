@@ -61,17 +61,21 @@
   }
 }
 
-// 表单控件状
+// 表单控件校验状态（配合切角轮廓使用 drop-shadow 避免被 clip-path 裁切）
 @mixin form-control-status($status) {
   @if $status == 'success' {
     border-color: var(--ex-color-success);
-    box-shadow: 0 0 5px var(--ex-color-success-alpha-30);
+    filter: drop-shadow(0 0 5px var(--ex-color-success-alpha-30));
   } @else if $status == 'warning' {
     border-color: var(--ex-color-warning);
-    box-shadow: 0 0 5px var(--ex-color-warning-alpha-30);
+    filter: drop-shadow(0 0 5px var(--ex-color-warning-alpha-30));
   } @else if $status == 'error' {
     border-color: var(--ex-color-error);
-    box-shadow: 0 0 5px var(--ex-color-error-alpha-30);
+    filter: drop-shadow(0 0 5px var(--ex-color-error-alpha-30));
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    filter: none;
   }
 }
 

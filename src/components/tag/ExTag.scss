@@ -11,14 +11,15 @@
   --ex-tag-hover-bg-color: var(--ex-color-bg-hover);
   --ex-tag-hover-border-color: var(--ex-tag-hover-color);
   --ex-tag-close-size: var(--ex-tag-close-size-md);
+  --ex-tag-current-border-color: var(--ex-tag-border-color, var(--ex-tag-default-border-color));
 
+  position: relative;
   display: inline-flex;
   align-items: center;
   justify-content: center;
   box-sizing: border-box;
   white-space: nowrap;
-  border: var(--ex-tag-border-width) solid
-    var(--ex-tag-border-color, var(--ex-tag-default-border-color));
+  border: var(--ex-tag-border-width) solid var(--ex-tag-current-border-color);
   border-radius: var(--ex-tag-radius);
   background-color: var(--ex-tag-bg-color, var(--ex-tag-default-bg-color));
   color: var(--ex-tag-text-color, var(--ex-tag-default-text-color));
@@ -26,9 +27,17 @@
   line-height: var(--ex-leading-tight);
   @include transition((background-color, border-color, color, transform, filter, box-shadow));
 
-  // 默认保留组件库的赛博朋克切角，键盘聚焦时暂时解除切角以保证焦点环完整可见。
+  // 默认保留组件库的赛博朋克切角与 45° 斜面描边，键盘聚焦时暂时解除切角以保证焦点环完整可见。
   &:not(.is-round) {
     @include chamfer(var(--ex-chamfer-sm));
+
+    &::after {
+      @include chamfer-bevel(
+        var(--ex-chamfer-sm),
+        var(--ex-tag-current-border-color),
+        var(--ex-tag-border-width)
+      );
+    }
   }
 
   // 默认尺寸为 medium，实际尺寸由 ConfigProvider 或 size 属性决定。
@@ -46,6 +55,10 @@
       outline-offset: 2px;
       clip-path: none;
       border-radius: var(--ex-tag-radius);
+
+      &::after {
+        display: none;
+      }
     }
 
     &:active {
@@ -57,10 +70,15 @@
   &.is-closable:not(.is-round):has(> .ex-tag__close:focus-visible) {
     clip-path: none;
     border-radius: var(--ex-tag-radius);
+
+    &::after {
+      display: none;
+    }
   }
 
   @media (hover: hover) {
     &.is-clickable:hover {
+      --ex-tag-current-border-color: var(--ex-tag-border-color, var(--ex-tag-hover-border-color));
       background-color: var(--ex-tag-bg-color, var(--ex-tag-hover-bg-color));
       border-color: var(--ex-tag-border-color, var(--ex-tag-hover-border-color));
       color: var(--ex-tag-text-color, var(--ex-tag-hover-text-color));
@@ -104,6 +122,10 @@
 
   // dark 与 type 使用组合选择器，确保运行时的两个独立 class 能正确匹配。
   @include m(dark) {
+    .ex-tag__close:hover {
+      background-color: var(--ex-color-black-alpha-20);
+    }
+
     @each $type in (primary, success, warning, danger, info) {
       &.ex-tag--#{$type} {
         --ex-tag-default-bg-color: var(--ex-tag-color);
@@ -181,7 +203,7 @@
     @include transition((background-color, color, box-shadow, transform));
 
     &:hover {
-      background-color: var(--ex-color-white-alpha-20);
+      background-color: var(--ex-color-primary-alpha-20);
     }
 
     &:active {
@@ -196,6 +218,7 @@
 
   // 高对比度与强制颜色模式下优先使用系统色，避免自定义颜色或霓虹效果降低可读性。
   @media (prefers-contrast: more), (forced-colors: active) {
+    --ex-tag-current-border-color: CanvasText;
     border-width: 2px;
     border-color: CanvasText !important;
     background-color: Canvas !important;

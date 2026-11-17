@@ -15,24 +15,24 @@ $select-touch-target: 44px;
   --ex-select-option-height: #{$select-option-height};
   --ex-select-dropdown-max-height: 300px;
 
-  // 尺寸变体
+  // 尺寸变体（统一 32 / 40 / 48px 高度梯度）
   &--small {
     .ex-select__trigger {
-      height: 32px;
+      height: var(--ex-input-height-sm, 32px);
       font-size: var(--ex-text-sm);
     }
   }
 
   &--medium {
     .ex-select__trigger {
-      height: 40px;
+      height: var(--ex-input-height-md, 40px);
       font-size: var(--ex-text-base);
     }
   }
 
   &--large {
     .ex-select__trigger {
-      height: 48px;
+      height: var(--ex-input-height-lg, 48px);
       font-size: var(--ex-text-lg);
     }
   }
@@ -50,11 +50,11 @@ $select-touch-target: 44px;
     }
   }
 
-  // 聚焦状态
+  // 聚焦状态（与表单控件族统一主色激活反馈）
   &.is-focus {
     .ex-select__trigger {
-      border-color: var(--ex-color-neon-pink-500);
-      @include neon-glow('pink', 'md');
+      border-color: var(--ex-color-primary);
+      @include neon-glow('blue', 'sm');
     }
   }
 
@@ -69,40 +69,30 @@ $select-touch-target: 44px;
 
   &.is-error .ex-select__trigger {
     border-color: var(--ex-color-error);
-    @include neon-glow('pink', 'sm');
+    box-shadow: 0 0 6px var(--ex-color-error-alpha-30);
   }
 
-  // 触发器禁用状态由根节点承载，不能在触发器自身上判断 is-disabled。
-  &:not(.is-disabled):not(.is-readonly) {
+  // 触发器禁用状态由根节点承载，悬停仅做克制的边框提亮，消除上下抖动。
+  &:not(.is-disabled):not(.is-readonly):not(.is-focus) {
     .ex-select__trigger:hover {
-      border-color: var(--ex-color-neon-pink-400);
-      @include neon-glow('pink', 'sm');
-      transform: translateY(-1px);
-    }
-
-    .ex-select__trigger:active {
-      transform: translateY(0);
+      border-color: var(--ex-color-primary-hover);
     }
   }
 
-  // 触发器
+  // 触发器（常态克制收敛，把霓虹能量留给聚焦与展开态）
   &__trigger {
     position: relative;
+    box-sizing: border-box;
     display: flex;
     align-items: center;
     width: 100%;
+    height: var(--ex-input-height-md, 40px);
     padding: 0 12px;
-    background: linear-gradient(
-      135deg,
-      rgba(var(--ex-color-bg-secondary-rgb), 0.8) 0%,
-      rgba(var(--ex-color-bg-primary-rgb), 0.9) 100%
-    );
-    border: 2px solid var(--ex-color-neon-blue-500);
-    border-radius: var(--ex-radius-lg);
+    background: var(--ex-color-bg-secondary);
+    border: 1px solid var(--ex-color-border-primary);
+    border-radius: var(--ex-radius-md);
     cursor: pointer;
-    backdrop-filter: blur(8px);
     @include transition(all);
-    @include neon-glow('blue', 'sm');
   }
 
   // 值显示区域
@@ -206,7 +196,6 @@ $select-touch-target: 44px;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
-    text-shadow: 0 0 4px rgba(var(--ex-color-neon-blue-500-rgb), 0.3);
   }
 
   // 搜索输入框
@@ -253,7 +242,7 @@ $select-touch-target: 44px;
     align-items: center;
     gap: 8px;
     margin-left: 8px;
-    color: var(--ex-color-neon-blue-400);
+    color: var(--ex-color-text-secondary);
   }
 
   // 清空按钮
@@ -301,21 +290,33 @@ $select-touch-target: 44px;
     }
   }
 
-  // 下拉菜单
+  // 下拉菜单（统一主色 HUD 浮层边框与浅色主题清爽降噪）
   &__dropdown {
     position: fixed;
     z-index: var(--ex-z-dropdown);
     background: linear-gradient(
       135deg,
       rgba(var(--ex-color-bg-primary-rgb), 0.95) 0%,
-      rgba(var(--ex-color-bg-secondary-rgb), 0.9) 100%
+      rgba(var(--ex-color-bg-secondary-rgb), 0.92) 100%
     );
-    border: 2px solid var(--ex-color-neon-pink-500);
+    border: 1px solid var(--ex-color-primary);
     border-radius: var(--ex-radius-lg);
     backdrop-filter: blur(12px);
-    @include neon-glow('pink', 'lg');
+    @include neon-glow('blue', 'md');
     overflow: hidden;
     max-height: var(--ex-select-dropdown-max-height, 300px);
+
+    &[data-theme='light'] {
+      background: var(--ex-color-bg-elevated);
+      border-color: var(--ex-color-border-primary);
+      box-shadow: var(--ex-shadow-lg);
+
+      .ex-select__option,
+      .ex-select__group,
+      .ex-select__option.is-selected::after {
+        text-shadow: none;
+      }
+    }
   }
 
   // 选项列表
@@ -525,13 +526,13 @@ $select-touch-target: 44px;
   // 无障碍支持
   &__trigger:focus-visible {
     outline: none;
-    border-color: var(--ex-color-neon-pink-500);
-    @include neon-glow('pink', 'md');
+    border-color: var(--ex-color-primary);
+    @include neon-glow('blue', 'sm');
   }
 
   &__trigger:focus-within {
-    border-color: var(--ex-color-neon-pink-500);
-    @include neon-glow('pink', 'md');
+    border-color: var(--ex-color-primary);
+    @include neon-glow('blue', 'sm');
   }
 }
 
@@ -556,48 +557,6 @@ $select-touch-target: 44px;
 .ex-select-dropdown-leave-to {
   opacity: 0;
   transform: translateY(-4px) scale(0.98);
-}
-
-// 特殊效果
-.ex-select__trigger {
-  // 科技感边框动画
-  &::before {
-    content: '';
-    position: absolute;
-    top: -2px;
-    left: -2px;
-    right: -2px;
-    bottom: -2px;
-    background: linear-gradient(
-      45deg,
-      var(--ex-color-neon-blue-500),
-      var(--ex-color-neon-pink-500),
-      var(--ex-color-neon-blue-500)
-    );
-    border-radius: var(--ex-radius-lg);
-    opacity: 0;
-    z-index: -1;
-    @include transition(opacity);
-  }
-
-  .ex-select:not(.is-disabled):not(.is-readonly) & {
-    &:hover::before {
-      opacity: 0.3;
-      animation: border-flow 2s linear infinite;
-    }
-  }
-}
-
-@keyframes border-flow {
-  0% {
-    background-position: 0% 50%;
-  }
-  50% {
-    background-position: 100% 50%;
-  }
-  100% {
-    background-position: 0% 50%;
-  }
 }
 
 // 选项进入动画
@@ -634,7 +593,6 @@ $select-touch-target: 44px;
 
 @media (prefers-reduced-motion: reduce) {
   .ex-select__trigger,
-  .ex-select__trigger::before,
   .ex-select__option,
   .ex-select__dropdown,
   .ex-select-dropdown-enter-active,

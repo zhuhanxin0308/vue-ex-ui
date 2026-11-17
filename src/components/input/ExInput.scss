@@ -38,6 +38,7 @@
 }
 
 .ex-input__wrapper {
+  position: relative;
   display: flex;
   width: 100%;
   min-width: 0;
@@ -45,6 +46,7 @@
 }
 
 .ex-input__inner {
+  position: relative;
   box-sizing: border-box;
   display: flex;
   width: 100%;
@@ -60,6 +62,15 @@
     border-color var(--ex-motion-duration-fast) var(--ex-motion-ease-in-out),
     background-color var(--ex-motion-duration-fast) var(--ex-motion-ease-in-out),
     filter var(--ex-motion-duration-fast) var(--ex-motion-ease-in-out);
+
+  // 补齐切角输入框在左上与右下 45° 斜切面处的边框描边。
+  &::after {
+    @include chamfer-bevel(
+      var(--ex-chamfer-sm),
+      var(--ex-input-border-color),
+      var(--ex-input-border-width, 1px)
+    );
+  }
 }
 
 // Neon 输入框默认采用终端提示符，显示逻辑由组件根据 prompt/show-prompt 控制。
@@ -200,9 +211,24 @@
   @include chamfer(var(--ex-chamfer-sm));
 }
 
+.ex-input--with-prepend .ex-input__wrapper::after,
+.ex-input--with-append .ex-input__wrapper::after {
+  @include chamfer-bevel(
+    var(--ex-chamfer-sm),
+    var(--ex-input-border-color),
+    var(--ex-input-border-width, 1px)
+  );
+  inset: 0;
+}
+
 .ex-input--with-prepend .ex-input__inner,
 .ex-input--with-append .ex-input__inner {
   clip-path: none;
+}
+
+.ex-input--with-prepend .ex-input__inner::after,
+.ex-input--with-append .ex-input__inner::after {
+  display: none;
 }
 
 .ex-input--with-prepend .ex-input__inner {
@@ -250,6 +276,8 @@
 }
 
 .ex-input--focused {
+  --ex-input-border-color: var(--ex-color-primary);
+
   .ex-input__label {
     color: var(--ex-color-primary);
   }
@@ -262,6 +290,8 @@
 }
 
 .ex-input--success {
+  --ex-input-border-color: var(--ex-color-success);
+
   .ex-input__inner,
   .ex-input__prepend,
   .ex-input__append {
@@ -270,6 +300,8 @@
 }
 
 .ex-input--warning {
+  --ex-input-border-color: var(--ex-color-warning);
+
   .ex-input__inner,
   .ex-input__prepend,
   .ex-input__append {
@@ -278,6 +310,8 @@
 }
 
 .ex-input--error {
+  --ex-input-border-color: var(--ex-color-error);
+
   .ex-input__inner,
   .ex-input__prepend,
   .ex-input__append {
@@ -294,6 +328,8 @@
 }
 
 .ex-input--disabled {
+  --ex-input-border-color: var(--ex-color-border-secondary);
+
   .ex-input__label,
   .ex-input__prefix,
   .ex-input__suffix {
@@ -389,7 +425,9 @@
 }
 
 @media (hover: hover) {
-  .ex-input:not(.ex-input--disabled) .ex-input__wrapper:hover {
+  .ex-input:not(.ex-input--disabled):not(.ex-input--focused) .ex-input__wrapper:hover {
+    --ex-input-border-color: var(--ex-color-primary-hover);
+
     .ex-input__inner,
     .ex-input__prepend,
     .ex-input__append {

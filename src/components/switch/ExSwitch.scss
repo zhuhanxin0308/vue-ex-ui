@@ -414,29 +414,14 @@
 }
 
 // ============================================================================
-// 响应式设计 - 移动端优化
+// 响应式设计 - 移动端优化（通过外围内边距扩展触控热区，不强行覆盖尺寸变体与内联文案宽度）
 // ============================================================================
 
 @include mobile {
   .ex-switch {
-    // 移动端增加触摸区域
+    min-height: var(--ex-button-touch-target, 44px);
     padding: var(--ex-spacing-2);
     margin: calc(var(--ex-spacing-2) * -1);
-
-    &__core {
-      // 移动端稍大的开关
-      height: 28px !important;
-      min-width: 52px !important;
-    }
-
-    &__action {
-      width: 20px !important;
-      height: 20px !important;
-    }
-
-    &.is-checked .ex-switch__action {
-      left: calc(100% - 22px) !important;
-    }
   }
 }
 

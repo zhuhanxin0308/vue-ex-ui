@@ -3,22 +3,23 @@
 
 .ex-number-input {
   position: relative;
+  box-sizing: border-box;
   display: inline-flex;
   align-items: center;
   width: 100%;
+  height: var(--ex-input-height-md, 40px);
   background: var(--ex-number-input-bg, var(--ex-color-bg-secondary));
   border: 1px solid var(--ex-number-input-border-color, var(--ex-color-text-tertiary));
   border-radius: var(--ex-radius-md);
   @include transition(all);
 
-  // 聚焦状态 - 增强赛博朋克效果
+  // 聚焦状态 - 增强赛博朋克效果（保持原地稳定，移除聚焦上跳位移）
   &--focused {
     border-color: var(--ex-number-input-border-focus-color, var(--ex-color-primary));
     box-shadow:
       0 0 0 2px var(--ex-color-primary-alpha-20),
       0 0 12px var(--ex-color-primary-alpha-30);
     @include neon-glow('blue', 'md');
-    transform: translateY(-1px);
 
     // 聚焦时隐藏按钮的分隔线，避免视觉干扰
     .ex-number-input__button {
@@ -62,19 +63,21 @@
     }
   }
 
-  // 尺寸变体 - 移动端优先，确保触摸区域足够大
+  // 尺寸变体 - 与表单输入控件族统一 32 / 40 / 48px 外框总高（border-box）
   &--small {
+    height: var(--ex-input-height-sm, 32px);
+
     .ex-number-input__input {
-      height: 32px;
+      height: 100%;
       padding: 0 var(--ex-spacing-2);
       font-size: var(--ex-text-sm);
     }
 
     .ex-number-input__button {
       min-width: 32px;
-      min-height: 32px;
+      min-height: 0;
       width: 32px;
-      height: 32px;
+      height: 100%;
     }
 
     &.ex-number-input--controls-right {
@@ -83,24 +86,26 @@
       }
 
       .ex-number-input__button {
-        min-height: 16px;
-        height: 16px;
+        min-height: 0;
+        height: 50%;
       }
     }
   }
 
   &--medium {
+    height: var(--ex-input-height-md, 40px);
+
     .ex-number-input__input {
-      height: 40px;
+      height: 100%;
       padding: 0 var(--ex-spacing-3);
       font-size: var(--ex-text-base);
     }
 
     .ex-number-input__button {
       min-width: 40px;
-      min-height: 40px;
+      min-height: 0;
       width: 40px;
-      height: 40px;
+      height: 100%;
     }
 
     &.ex-number-input--controls-right {
@@ -109,24 +114,26 @@
       }
 
       .ex-number-input__button {
-        min-height: 20px;
-        height: 20px;
+        min-height: 0;
+        height: 50%;
       }
     }
   }
 
   &--large {
+    height: var(--ex-input-height-lg, 48px);
+
     .ex-number-input__input {
-      height: 48px;
+      height: 100%;
       padding: 0 var(--ex-spacing-4);
       font-size: var(--ex-text-lg);
     }
 
     .ex-number-input__button {
       min-width: 48px;
-      min-height: 48px;
+      min-height: 0;
       width: 48px;
-      height: 48px;
+      height: 100%;
     }
 
     &.ex-number-input--controls-right {
@@ -135,8 +142,8 @@
       }
 
       .ex-number-input__button {
-        min-height: 24px;
-        height: 24px;
+        min-height: 0;
+        height: 50%;
       }
     }
   }
@@ -160,7 +167,7 @@
 .ex-number-input__input {
   flex: 1;
   width: 100%;
-  height: 40px;
+  height: 100%;
   padding: 0 var(--ex-spacing-3);
   background: transparent;
   border: none;
@@ -207,11 +214,10 @@
   position: relative;
   @include transition(all);
 
-  // 赛博朋克悬停效果
+  // 赛博朋克悬停效果（移除垂直位移，防止点击加减时目标抖动）
   &:hover:not(:disabled) {
     background: var(--ex-number-input-button-hover-bg, var(--ex-color-primary-alpha-10));
     color: var(--ex-color-primary);
-    transform: translateY(-1px);
 
     &::before {
       content: '';

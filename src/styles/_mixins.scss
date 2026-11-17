@@ -231,6 +231,37 @@
   );
 }
 
+// 切角斜边描边补全（挂载在 ::after 伪元素上，对齐父级 border-box 绘制左上与右下 45° 斜切面描边）
+@mixin chamfer-bevel(
+  $size: var(--ex-chamfer-md),
+  $color: var(--ex-color-border-primary),
+  $width: 1px
+) {
+  content: '';
+  position: absolute;
+  inset: calc(-1 * #{$width});
+  z-index: 3;
+  pointer-events: none;
+  background-image:
+    linear-gradient(
+      135deg,
+      #{$color} calc(50% + #{$width}),
+      transparent calc(50% + #{$width} + 0.5px)
+    ),
+    linear-gradient(
+      315deg,
+      #{$color} calc(50% + #{$width}),
+      transparent calc(50% + #{$width} + 0.5px)
+    );
+  background-position:
+    0 0,
+    100% 100%;
+  background-size:
+    #{$size} #{$size},
+    #{$size} #{$size};
+  background-repeat: no-repeat;
+}
+
 // 切角元素的发光（用 filter: drop-shadow，会沿着 clip-path 形状投影）
 @mixin chamfer-glow($color: 'blue', $intensity: 'md') {
   @if $color == 'blue' {

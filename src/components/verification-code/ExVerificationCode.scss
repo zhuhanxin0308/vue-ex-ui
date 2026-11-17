@@ -46,36 +46,47 @@
     pointer-events: none;
   }
 
-  // 格子
+  // 格子（统一赛博切角轮廓与 45° 斜切面描边，保留三级边框满足 >= 3:1 对比度）
   &__cell {
+    --ex-verification-cell-border: var(--ex-color-text-tertiary);
+
     @include flex-center;
     width: 48px;
     height: 48px;
-    border: 2px solid var(--ex-color-text-tertiary);
-    border-radius: var(--ex-radius-md);
+    border: 2px solid var(--ex-verification-cell-border);
+    @include chamfer(var(--ex-chamfer-sm));
     background: var(--ex-color-bg-secondary);
     cursor: text;
     @include safe-transition(all);
     position: relative;
 
+    &::after {
+      @include chamfer-bevel(var(--ex-chamfer-sm), var(--ex-verification-cell-border), 2px);
+    }
+
     &--focused {
+      --ex-verification-cell-border: var(--ex-color-primary);
       border-color: var(--ex-color-primary);
-      @include optimized-neon-glow('blue', 'md');
+      @include chamfer-glow('blue', 'md');
     }
 
     &--filled {
+      --ex-verification-cell-border: var(--ex-color-primary);
       border-color: var(--ex-color-primary);
     }
 
     &--error {
+      --ex-verification-cell-border: var(--ex-color-error);
       @include form-control-status('error');
     }
 
     &--success {
+      --ex-verification-cell-border: var(--ex-color-success);
       @include form-control-status('success');
     }
 
     &--warning {
+      --ex-verification-cell-border: var(--ex-color-warning);
       @include form-control-status('warning');
     }
   }
@@ -182,25 +193,51 @@
     }
   }
 
-  // 样式变体
+  // 样式变体（统一聚焦主色与切角发光语言）
   &--neon {
     .ex-verification-code__cell--focused {
-      @include optimized-neon-glow('blue', 'lg');
+      @include chamfer-glow('blue', 'lg');
     }
   }
 
   &--ghost {
     .ex-verification-code__cell {
-      @include component-variant-ghost;
+      --ex-verification-cell-border: var(--ex-color-text-tertiary);
+      background: transparent;
+      border-color: var(--ex-verification-cell-border);
+
+      &:hover {
+        --ex-verification-cell-border: var(--ex-color-primary-hover);
+        border-color: var(--ex-color-primary-hover);
+        background: var(--ex-color-bg-secondary-alpha-30);
+      }
+
+      &--focused {
+        --ex-verification-cell-border: var(--ex-color-primary);
+        border-color: var(--ex-color-primary);
+        background: var(--ex-color-bg-secondary-alpha-50);
+        @include chamfer-glow('blue', 'sm');
+      }
     }
   }
 
   &--filled {
     .ex-verification-code__cell {
-      @include component-variant-filled;
+      --ex-verification-cell-border: var(--ex-color-text-tertiary);
+      background: var(--ex-color-bg-tertiary);
+      border-color: var(--ex-verification-cell-border);
+
+      &:hover {
+        --ex-verification-cell-border: var(--ex-color-primary-hover);
+        background: var(--ex-color-bg-secondary);
+        border-color: var(--ex-color-primary-hover);
+      }
 
       &--focused {
+        --ex-verification-cell-border: var(--ex-color-primary);
+        background: var(--ex-color-bg-secondary);
         border-color: var(--ex-color-primary);
+        @include chamfer-glow('blue', 'sm');
       }
     }
   }
@@ -230,12 +267,14 @@
   // 禁用霓虹效果
   &--no-neon {
     .ex-verification-code__cell--focused {
-      box-shadow: 0 0 0 2px var(--ex-color-primary-alpha-20);
+      filter: none;
+      box-shadow: none;
     }
 
     &.ex-verification-code--neon {
       .ex-verification-code__cell--focused {
-        box-shadow: 0 0 0 2px var(--ex-color-primary-alpha-20);
+        filter: none;
+        box-shadow: none;
       }
     }
   }

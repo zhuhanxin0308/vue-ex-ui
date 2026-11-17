@@ -160,19 +160,11 @@
     }
   }
 
-  // 上一页/下一页按钮
+  // 上一页/下一页按钮（跟随父级语义文字色与悬停态，避免无差别反色在浅色主题下失明）
   &.ex-pagination__prev,
   &.ex-pagination__next {
     img {
-      filter: brightness(0) invert(1);
-      @include transition(filter);
-    }
-
-    &:hover:not(:disabled) {
-      img {
-        filter: brightness(0) saturate(100%) invert(67%) sepia(98%) saturate(2000%)
-          hue-rotate(160deg);
-      }
+      display: block;
     }
   }
 }

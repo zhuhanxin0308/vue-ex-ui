@@ -9,6 +9,7 @@
   --ex-button-disabled-fg: var(--ex-color-text-tertiary);
   --ex-button-border: var(--ex-color-primary);
   --ex-button-border-hover: var(--ex-color-primary);
+  --ex-button-bevel-color: var(--ex-button-border);
   --ex-button-accent: var(--ex-color-primary);
   --ex-button-soft-bg: var(--ex-color-primary-alpha-10);
   --ex-button-glow-color: var(--ex-color-primary-alpha-30);
@@ -62,6 +63,11 @@
   // 默认形态保留组件库的切角语言，其他形态由独立 shape 类控制。
   &--shape-default:not(.ex-button--text):not(.ex-button--link) {
     @include chamfer(var(--ex-chamfer-sm));
+
+    // 补全 45° 斜切面处的 2px 描边，消除矩形 border 被 clip-path 截断的缺口。
+    &::after {
+      @include chamfer-bevel(var(--ex-chamfer-sm), var(--ex-button-bevel-color), 2px);
+    }
   }
 
   // 发光开关同时控制外发光和掠光，避免各类型自行决定造成不一致。
@@ -149,6 +155,7 @@
   }
 
   &:active:not(:disabled):not(.ex-button--loading) {
+    --ex-button-bevel-color: var(--ex-button-border-hover);
     color: var(--ex-button-fg-hover);
     background: var(--ex-button-bg-active);
     border-color: var(--ex-button-border-hover);
@@ -157,6 +164,7 @@
 
   &:disabled:not(.ex-button--loading),
   &--disabled:not(.ex-button--loading) {
+    --ex-button-bevel-color: var(--ex-color-border-secondary);
     color: var(--ex-button-disabled-fg);
     background: var(--ex-color-bg-tertiary);
     border-color: var(--ex-color-border-secondary);
@@ -388,6 +396,7 @@
 
   // 朴素样式保持原类型的强调色，但不再在 hover 时反转成不可读文字。
   &--plain:not(.ex-button--text):not(.ex-button--link) {
+    --ex-button-bevel-color: var(--ex-button-accent);
     color: var(--ex-button-accent);
     background: transparent;
     border-color: var(--ex-button-accent);
@@ -459,6 +468,10 @@
       calc(100% - var(--ex-button-shape-cut)) 100%,
       0 100%
     );
+
+    &::after {
+      @include chamfer-bevel(var(--ex-button-shape-cut), var(--ex-button-bevel-color), 2px);
+    }
   }
 
   // 平行四边形形态让按钮拥有明显的高速切入方向。
@@ -524,6 +537,7 @@
 
 @media (hover: hover) {
   .ex-button:hover:not(:disabled):not(.ex-button--loading) {
+    --ex-button-bevel-color: var(--ex-button-border-hover);
     color: var(--ex-button-fg-hover);
     background: var(--ex-button-bg-hover);
     border-color: var(--ex-button-border-hover);
@@ -531,6 +545,7 @@
   }
 
   .ex-button--plain:hover:not(:disabled):not(.ex-button--loading) {
+    --ex-button-bevel-color: var(--ex-button-accent);
     color: var(--ex-button-accent);
     background: var(--ex-button-soft-bg);
   }

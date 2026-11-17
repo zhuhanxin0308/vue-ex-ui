@@ -7,30 +7,28 @@
 }
 
 .ex-popover__popper {
+  --ex-popover-border-color: var(--ex-color-primary);
+
   position: fixed;
   max-width: 400px;
   padding: var(--ex-spacing-4);
   background: var(--ex-color-bg-elevated);
-  border: 1px solid var(--ex-color-border-primary);
+  border: 1px solid var(--ex-popover-border-color);
   border-radius: var(--ex-radius-lg);
-  box-shadow: var(--ex-shadow-xl);
+  box-shadow:
+    var(--ex-shadow-xl),
+    0 0 16px var(--ex-color-primary-alpha-20);
   z-index: var(--ex-z-popover, 1060);
   word-wrap: break-word;
 
-  // 霓虹边框效果
-  &__border {
+  // 霓虹内发光边框层（修复原先 &__border 错位编译为 .ex-popover__popper__border 的问题）
+  .ex-popover__border {
     position: absolute;
-    top: 0;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    border-radius: var(--ex-radius-lg);
+    inset: 0;
+    border-radius: inherit;
     pointer-events: none;
-    box-shadow:
-      inset 0 0 20px var(--ex-color-primary-alpha-30),
-      0 0 20px var(--ex-color-primary-alpha-20);
-    border: 1px solid var(--ex-color-primary);
-    opacity: 0.8;
+    box-shadow: inset 0 0 16px var(--ex-color-primary-alpha-20);
+    opacity: 0.75;
   }
 
   // 标题
@@ -54,16 +52,35 @@
     z-index: 1;
   }
 
-  // 箭头
+  // 箭头（与浮层主体共享边框变量，消除断层）
   .ex-popover__arrow {
     position: absolute;
     width: 10px;
     height: 10px;
     background: var(--ex-color-bg-elevated);
-    border: 1px solid var(--ex-color-primary);
+    border: 1px solid var(--ex-popover-border-color);
     transform: rotate(45deg);
     box-shadow: 0 0 8px var(--ex-color-primary-alpha-30);
     z-index: 0;
+  }
+
+  // 浅色主题收敛霓虹内发光与光晕，保持日光终端清爽质感
+  &[data-theme='light'] {
+    --ex-popover-border-color: var(--ex-color-border-primary);
+    box-shadow: var(--ex-shadow-xl);
+
+    .ex-popover__border {
+      box-shadow: none;
+      opacity: 0;
+    }
+
+    .ex-popover__title {
+      text-shadow: none;
+    }
+
+    .ex-popover__arrow {
+      box-shadow: none;
+    }
   }
 
   // 位置样式 - 箭头位置
@@ -174,7 +191,7 @@
   transform: scale(0.95);
 }
 
-// 响应式设�?
+// 响应式设计
 @include desktop-first(md) {
   .ex-popover__popper {
     max-width: calc(100vw - 32px);
@@ -182,7 +199,7 @@
   }
 }
 
-// 无障碍支�?
+// 无障碍支持
 @media (prefers-reduced-motion: reduce) {
   .ex-popover-fade-enter-active,
   .ex-popover-fade-leave-active {

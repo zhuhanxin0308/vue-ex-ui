@@ -69,6 +69,13 @@
     inline-size: var(--ex-modal-width-large);
   }
 
+  // 默认 neon 模式未指定语义类型时，回退为主色霓虹发光与角标强调，避免退化为透明空实现
+  &--neon {
+    --ex-modal-accent: var(--ex-color-primary);
+    --ex-modal-accent-soft: var(--ex-color-primary-alpha-10);
+    --ex-modal-glow-color: var(--ex-color-primary-alpha-30);
+  }
+
   &--primary {
     --ex-modal-accent: var(--ex-color-primary);
     --ex-modal-accent-soft: var(--ex-color-primary-alpha-10);
@@ -136,6 +143,10 @@
       text-shadow: 0 0 var(--ex-spacing-3) var(--ex-modal-glow-color);
     }
   }
+}
+
+.ex-modal-root[data-theme='light'] .ex-modal--neon .ex-modal-title {
+  text-shadow: none;
 }
 
 .ex-modal-content {

@@ -293,7 +293,7 @@
         var(--ex-color-neon-blue-500),
         var(--ex-color-neon-pink-500)
       );
-      color: var(--ex-color-white);
+      color: var(--ex-button-ink-on-bright);
       @include neon-glow('blue', 'sm');
     }
   }

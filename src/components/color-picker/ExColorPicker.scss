@@ -20,12 +20,14 @@
 .ex-color-picker {
   position: relative;
   display: inline-block;
+  font-family: var(--ex-font-secondary);
 
   &__trigger {
+    box-sizing: border-box;
     display: inline-flex;
     align-items: center;
     gap: 4px;
-    height: 36px;
+    height: var(--ex-input-height-md, 40px);
     padding: 0 6px;
     appearance: none;
     color: var(--ex-color-text-primary);
@@ -80,7 +82,7 @@
   }
 
   &--small &__trigger {
-    height: 30px;
+    height: var(--ex-input-height-sm, 32px);
   }
 
   &--small &__swatch {
@@ -89,7 +91,13 @@
   }
 
   &--large &__trigger {
-    height: 42px;
+    height: var(--ex-input-height-lg, 48px);
+  }
+
+  @media (pointer: coarse) {
+    .ex-color-picker__trigger {
+      min-height: var(--ex-input-touch-target, 44px);
+    }
   }
 
   &--large &__swatch {

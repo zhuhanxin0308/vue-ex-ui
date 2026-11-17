@@ -77,9 +77,9 @@
       transform: translate(-50%, -50%);
       font-size: var(--ex-text-xs);
       font-weight: var(--ex-font-semibold);
-      color: var(--ex-color-white);
+      color: var(--ex-button-ink-on-bright);
       white-space: nowrap;
-      text-shadow: 0 1px 2px var(--ex-color-black-alpha-50);
+      text-shadow: none;
       z-index: 1;
     }
 
@@ -119,13 +119,13 @@
     }
   }
 
-  // 状态样- 游戏主题增强
+  // 状态样式 - 游戏主题增强
   &--success {
     .ex-progress__bar {
       background: linear-gradient(
         135deg,
         var(--ex-color-success) 0%,
-        var(--ex-color-success-mid) 100%
+        var(--ex-color-success-hover) 100%
       );
       box-shadow: 0 0 10px var(--ex-color-success-alpha-50);
     }
@@ -137,11 +137,7 @@
 
   &--exception {
     .ex-progress__bar {
-      background: linear-gradient(
-        135deg,
-        var(--ex-color-danger) 0%,
-        var(--ex-color-danger-mid) 100%
-      );
+      background: linear-gradient(135deg, var(--ex-color-danger) 0%, var(--ex-color-error) 100%);
       box-shadow: 0 0 10px var(--ex-color-error-alpha-50);
     }
 

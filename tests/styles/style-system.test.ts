@@ -446,10 +446,140 @@ describe('v2 样式系统边界', { timeout: STYLE_COMPILATION_TIMEOUT_MS }, () 
       .control {
         @include component.form-control-base;
       }
+      .error {
+        @include component.form-control-status('error');
+      }
     `);
 
     expect(css).toContain('filter: drop-shadow(0 0 8px var(--ex-color-neon-pink-alpha-30))');
+    expect(css).toContain('filter: drop-shadow(0 0 5px var(--ex-color-error-alpha-30))');
     expect(css).not.toContain('box-shadow: 0 0 10px var(--ex-color-neon-pink-alpha-30)');
+    expect(css).not.toContain('box-shadow: 0 0 5px var(--ex-color-error-alpha-30)');
+  });
+
+  it('切角组件统一补全 45° 斜面描边并使用 drop-shadow 替代被裁切的阴影', () => {
+    const buttonCss = compile("@use 'src/components/button/ExButton';");
+    const inputCss = compile("@use 'src/components/input/ExInput';");
+    const cardCss = compile("@use 'src/components/card/ExCard';");
+    const dialogCss = compile("@use 'src/components/dialog/ExDialog';");
+    const alertCss = compile("@use 'src/components/alert/ExAlert';");
+    const tagCss = compile("@use 'src/components/tag/ExTag';");
+    const descriptionsCss = compile("@use 'src/components/descriptions/ExDescriptions';");
+
+    expect(buttonCss).toContain('linear-gradient(135deg, var(--ex-button-bevel-color)');
+    expect(inputCss).toContain('.ex-input__inner::after');
+    expect(inputCss).toContain('.ex-input--with-prepend .ex-input__inner::after');
+    expect(cardCss).toContain('.ex-card:not(.ex-card--borderless):not(.ex-terminal)::after');
+    expect(dialogCss).toContain('.ex-dialog:not(.ex-dialog--fullscreen)::after');
+    expect(dialogCss).toMatch(/\.ex-dialog--fullscreen\s*\{[\s\S]*?clip-path:\s*none;/);
+    expect(dialogCss).not.toMatch(/\.ex-dialog--primary\s*\{[^}]*box-shadow:/);
+    expect(alertCss).toContain('.ex-alert:not(.ex-alert--borderless)::after');
+    expect(alertCss).toContain('filter: drop-shadow(');
+    expect(alertCss).not.toContain('box-shadow:');
+    expect(tagCss).toContain('.ex-tag:not(.is-round)::after');
+    expect(descriptionsCss).toContain('clip-path: polygon(var(--ex-chamfer-md) 0%');
+    expect(descriptionsCss).not.toContain('calc(100% - 10px) 0');
+  });
+
+  it('Tooltip 与 Popover 边框层正确绝对定位且在浅色主题下收敛光晕', () => {
+    const tooltipCss = compile("@use 'src/components/tooltip/ExTooltip';");
+    const popoverCss = compile("@use 'src/components/popover/ExPopover';");
+
+    expect(tooltipCss).toContain('.ex-tooltip__popper .ex-tooltip__border');
+    expect(tooltipCss).not.toContain('.ex-tooltip__popper__border');
+    expect(popoverCss).toContain('.ex-popover__popper .ex-popover__border');
+    expect(popoverCss).not.toContain('.ex-popover__popper__border');
+    expect(popoverCss).toContain('--ex-popover-border-color: var(--ex-color-primary)');
+    expect(popoverCss).toContain('.ex-popover__popper[data-theme=light]');
+  });
+
+  it('双主题语义墨色与矢量图标着色替代位图滤镜反色', () => {
+    const notificationCss = compile("@use 'src/components/notification/ExNotification';");
+    const tabsCss = compile("@use 'src/components/tabs/ExTabs';");
+    const progressCss = compile("@use 'src/components/progress/ExProgress';");
+    const treeSelectCss = compile("@use 'src/components/tree-select/ExTreeSelect';");
+    const badgeCss = compile("@use 'src/components/badge/ExBadge';");
+    const heatmapCss = compile("@use 'src/components/heatmap/ExHeatmap';");
+    const cascaderCss = compile("@use 'src/components/cascader/ExCascader';");
+    const paginationCss = compile("@use 'src/components/pagination/ExPagination';");
+    const carouselCss = compile("@use 'src/components/carousel/ExCarousel';");
+    const calendarCss = compile("@use 'src/components/calendar/ExCalendar';");
+    const uploadCss = compile("@use 'src/components/file-upload/ExFileUpload';");
+
+    expect(notificationCss).toMatch(
+      /\.ex-notification__icon--error\s*\{\s*color:\s*var\(--ex-color-error\);/
+    );
+    expect(notificationCss).not.toContain('hue-rotate(');
+    expect(tabsCss).toContain('color: var(--ex-button-ink-on-bright);');
+    expect(progressCss).toContain('color: var(--ex-button-ink-on-bright);');
+    expect(treeSelectCss).toContain('var(--ex-button-ink-on-bright)');
+    expect(badgeCss).toContain('color: var(--ex-button-ink-on-bright);');
+    expect(heatmapCss).toContain('--ex-heatmap-level-4: var(--ex-color-text-primary);');
+
+    for (const css of [cascaderCss, paginationCss, carouselCss, calendarCss, uploadCss]) {
+      expect(css).not.toContain('invert(1)');
+      expect(css).not.toContain('hue-rotate(');
+    }
+  });
+
+  it('表单输入与选择控件族共享 32 / 40 / 48px 高度梯度且 Switch 移动端不锁死宽度', () => {
+    const numberInputCss = compile("@use 'src/components/number-input/ExNumberInput';");
+    const selectCss = compile("@use 'src/components/select/ExSelect';");
+    const datePickerCss = compile("@use 'src/components/datetime-picker/ExDateTimePicker';");
+    const timePickerCss = compile("@use 'src/components/time-picker/ExTimePicker';");
+    const colorPickerCss = compile("@use 'src/components/color-picker/ExColorPicker';");
+    const treeSelectCss = compile("@use 'src/components/tree-select/ExTreeSelect';");
+    const switchCss = compile("@use 'src/components/switch/ExSwitch';");
+
+    for (const css of [
+      numberInputCss,
+      selectCss,
+      datePickerCss,
+      timePickerCss,
+      colorPickerCss,
+      treeSelectCss,
+    ]) {
+      expect(css).toContain('var(--ex-input-height-sm, 32px)');
+      expect(css).toContain('var(--ex-input-height-md, 40px)');
+      expect(css).toContain('var(--ex-input-height-lg, 48px)');
+    }
+
+    expect(selectCss).not.toContain('border-flow');
+    expect(switchCss).not.toContain('min-width: 52px !important');
+  });
+
+  it('HUD 容器族补齐 Modal 默认霓虹强调、Panel 切角减动效与 Breadcrumb 当前页发光', () => {
+    const modalCss = compile("@use 'src/components/modal/ExModal';");
+    const panelCss = compile("@use 'src/components/panel/ExPanel';");
+    const drawerCss = compile("@use 'src/components/drawer/ExDrawer';");
+    const breadcrumbItemCss = compile("@use 'src/components/breadcrumb/ExBreadcrumbItem';");
+
+    expect(modalCss).toMatch(
+      /\.ex-modal--neon\s*\{[\s\S]*?--ex-modal-accent:\s*var\(--ex-color-primary\);/
+    );
+    expect(panelCss).toContain('clip-path: polygon(var(--ex-chamfer-md) 0%');
+    expect(panelCss).toContain(
+      '.ex-panel:not(.ex-panel--borderless):not(.ex-panel--loading)::after'
+    );
+    expect(panelCss).toMatch(
+      /@media \(prefers-reduced-motion: reduce\)[\s\S]*?\.ex-panel--loading::before\s*\{\s*animation:\s*none;/
+    );
+    expect(drawerCss).toContain('.ex-drawer-wrapper[data-theme=light]');
+    expect(drawerCss).not.toContain('invert(1)');
+    expect(breadcrumbItemCss).toMatch(
+      /\.ex-breadcrumb-item--last\s+\.ex-breadcrumb-item__text-wrapper\s*\{[\s\S]*?box-shadow:\s*0 0 5px var\(--ex-color-neon-blue-alpha-30\);/
+    );
+  });
+
+  it('所有源码文件均不包含 U+FFFD 编码替换字符', () => {
+    const corruptedFiles = globSync('src/**/*.{scss,vue,ts}', {
+      cwd: root,
+      windowsPathsNoEscape: true,
+    })
+      .filter(file => readFileSync(join(root, file), 'utf8').includes('\uFFFD'))
+      .sort();
+
+    expect(corruptedFiles).toEqual([]);
   });
 
   it('Tag 将间距交给父级布局，并为关闭目标提供高对比度与最小触控尺寸', () => {

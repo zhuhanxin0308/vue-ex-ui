@@ -64,10 +64,10 @@
 
   // ---------- 按钮 ----------
   --vp-button-brand-border: transparent;
-  --vp-button-brand-text: var(--ex-color-white);
+  --vp-button-brand-text: var(--ex-button-ink-on-bright);
   --vp-button-brand-bg: var(--ex-color-primary);
   --vp-button-brand-hover-border: transparent;
-  --vp-button-brand-hover-text: var(--ex-color-white);
+  --vp-button-brand-hover-text: var(--ex-button-ink-on-bright);
   --vp-button-brand-hover-bg: var(--ex-color-primary-hover);
   --vp-button-brand-active-bg: var(--ex-color-primary-active);
   --vp-button-alt-border: var(--ex-color-border-secondary);
@@ -121,11 +121,15 @@
   --vp-home-hero-image-filter: blur(72px);
 }
 
-// VitePress 的暗色 class 复用同一套深色变量（任何状态下保持一致）
+// VitePress 暗色/浅色主题与 ExUI 双主题背景同步
 .dark {
   --vp-c-bg: var(--ex-color-bg-primary);
   --vp-c-bg-alt: var(--ex-color-bg-secondary);
   --vp-c-bg-soft: var(--ex-color-bg-secondary);
+}
+
+[data-theme='light'] {
+  --vp-code-block-bg: var(--ex-color-bg-secondary);
 }
 
 // ============================================================================
