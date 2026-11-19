@@ -182,6 +182,23 @@ describe('ExDateTimePicker', () => {
     expect(value[1].getHours()).toBe(0);
   });
 
+  it('重新选择已失效的范围起点，并允许在新起点提交同日区间', async () => {
+    mountPicker({ type: 'daterange' });
+    await openPanel();
+    dayButton('2024-05-10').click();
+    await wrapper!.setProps({ disabledDate: (date: Date) => date.getDate() === 10 });
+    expect(dayButton('2024-05-10').disabled).toBe(true);
+    dayButton('2024-05-11').click();
+    await nextTick();
+    expect(wrapper!.emitted('update:modelValue')).toBeUndefined();
+    expect(wrapper!.emitted('change')).toBeUndefined();
+    expect(input().attributes('aria-expanded')).toBe('true');
+    dayButton('2024-05-11').click();
+    expect(wrapper!.emitted('update:modelValue')).toEqual([
+      [[new Date(2024, 4, 11), new Date(2024, 4, 11)]],
+    ]);
+  });
+
   it('日期时间范围允许显式零点，不会把 0 误判为缺省的 23:59:59', async () => {
     mountPicker({
       modelValue: [new Date(2024, 4, 1), new Date(2024, 4, 2)],

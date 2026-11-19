@@ -13,6 +13,29 @@ afterEach(() => {
 });
 
 describe('时间范围与表单、服务端渲染集成', () => {
+  it.each([
+    ['HH:mm', '10:30', false],
+    ['HH:mm', '10:29', true],
+    ['HH:mm:ss', '10:30:00', true],
+  ] as const)('按可见精度比较现在与结束时间：%s %s', async (format, end, reversed) => {
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(new Date(2024, 4, 10, 10, 30, 45));
+    try {
+      const wrapper = mount(ExTimePicker, {
+        props: { format, range: true, rangeValue: [end, end], teleported: false },
+      });
+      cleanups.push(() => wrapper.unmount());
+      await wrapper.get('[role="combobox"]').trigger('click');
+      await wrapper.get('.ex-time-picker__now').trigger('click');
+      const confirm = wrapper.get<HTMLButtonElement>('.ex-time-picker__confirm');
+      expect(confirm.element.disabled).toBe(reversed);
+      await confirm.trigger('click');
+      expect(wrapper.emitted('update:rangeValue')).toEqual(reversed ? undefined : [[[end, end]]]);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it('只在完整确认后校验范围模型，半成品和取消不触发表单变更', async () => {
     const model = reactive<{ time: TimePickerRange | null }>({ time: null });
     const validated: unknown[] = [];

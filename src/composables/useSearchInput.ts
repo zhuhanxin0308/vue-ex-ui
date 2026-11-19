@@ -3,13 +3,13 @@ import { computed, ref, type Ref } from 'vue';
 const isCompositionInput = ({ inputType, isComposing }: InputEvent) =>
   isComposing || inputType === 'insertCompositionText' || inputType === 'insertFromComposition';
 
-export function useCascaderSearchInput(
+export function useSearchInput(
   input: Ref<HTMLInputElement | undefined>,
   confirmedValue: Readonly<Ref<string>>,
   commitSearch: (value: string) => void
 ) {
   const draft = ref<string | null>(null);
-  let discardedComposition = false;
+  let discardedComposition: 'none' | 'waiting' | 'resumed' = 'none';
   let ignoredFinalInput: string | null = null;
 
   const displayValue = computed(() => draft.value ?? confirmedValue.value);
@@ -19,32 +19,34 @@ export function useCascaderSearchInput(
   };
 
   const discard = () => {
-    discardedComposition ||= draft.value !== null;
+    if (draft.value !== null) discardedComposition = 'waiting';
     draft.value = null;
     restoreDisplay();
   };
 
   const startComposition = () => {
-    discardedComposition = false;
+    discardedComposition = 'none';
     ignoredFinalInput = null;
     draft.value = input.value?.value ?? confirmedValue.value;
   };
 
   const endComposition = () => {
-    if (!input.value || (draft.value === null && !discardedComposition)) return;
+    if (!input.value || (draft.value === null && discardedComposition === 'none')) return;
     const value = input.value.value;
     draft.value = null;
-    if (!discardedComposition) {
+    // 最终文本可能在微任务之后被浏览器再次派发，只消费一次提交。
+    ignoredFinalInput = value;
+    if (discardedComposition === 'none') {
       commitSearch(value);
       return;
     }
-    discardedComposition = false;
+    discardedComposition = 'none';
     restoreDisplay();
-    // 尾随 input 可以出现在微任务之后，保留到第一个输入或新编辑开始。
-    ignoredFinalInput = value;
   };
 
   const startEdit = () => {
+    // 新的普通键入无需等待旧组合结束，但迟到的组合结果仍属于已撤销会话。
+    if (discardedComposition === 'waiting') discardedComposition = 'resumed';
     ignoredFinalInput = null;
   };
 
@@ -60,7 +62,8 @@ export function useCascaderSearchInput(
     const cancelledValue = ignoredFinalInput;
     ignoredFinalInput = null;
     if (
-      discardedComposition ||
+      discardedComposition === 'waiting' ||
+      (discardedComposition === 'resumed' && isCompositionInput(edit)) ||
       (cancelledValue !== null &&
         (value === cancelledValue || value === confirmedValue.value || isCompositionInput(edit)))
     ) {
@@ -74,7 +77,7 @@ export function useCascaderSearchInput(
     commitSearch(value);
   };
 
-  const isComposing = () => draft.value !== null || discardedComposition;
+  const isComposing = () => draft.value !== null || discardedComposition === 'waiting';
 
   return {
     displayValue,

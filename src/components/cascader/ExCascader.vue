@@ -387,7 +387,7 @@ import { collectCascaderSearchPaths } from './search';
 import type { CascaderSearchResult } from './search';
 import { useCascaderPaths } from './use-cascader-paths';
 import { useCascaderKeyboard } from './use-cascader-keyboard';
-import { useCascaderSearchInput } from './use-cascader-search-input';
+import { useSearchInput } from '../../composables/useSearchInput';
 import { useCascaderMultiple, cascaderPathKey } from './use-cascader-multiple';
 import { useAsyncOptions } from '../tree-select/use-async-options';
 import { captureReactiveValue } from '../../utils/reactive-snapshot';
@@ -542,7 +542,7 @@ const inputDisplayValue = computed(() => {
   if (props.filterable && visible.value) return searchQuery.value;
   return props.multiple ? '' : displayValue.value;
 });
-const searchInput = useCascaderSearchInput(inputRef, inputDisplayValue, setSearchQuery);
+const searchInput = useSearchInput(inputRef, inputDisplayValue, setSearchQuery);
 // 缓存可选的完整路径，避免每次输入都遍历整棵树。
 const selectablePaths = computed(() =>
   collectCascaderSearchPaths(asyncOptions.data.value, props.changeOnSelect)

@@ -1,6 +1,7 @@
 <template>
   <div
     :id="id"
+    ref="rateRef"
     :class="rateClasses"
     :style="rateStyles"
     role="slider"
@@ -48,10 +49,7 @@
         </span>
 
         <!-- 选中的图标 -->
-        <span
-          class="ex-rate__icon ex-rate__icon--active"
-          :style="getActiveStyle(item)"
-        >
+        <span class="ex-rate__icon ex-rate__icon--active">
           <slot
             name="icon-active"
             :index="item"
@@ -113,6 +111,10 @@ const props = withDefaults(defineProps<ExRateProps>(), {
 
 const emit = defineEmits<ExRateEmits>();
 const { t } = useLocale('rate');
+const rateRef = ref<HTMLElement>();
+
+// 与半星裁剪共用原生方向匹配，继承方向变化后无需额外观察器或缓存。
+const isRightToLeft = () => rateRef.value?.matches(':dir(rtl)') ?? false;
 
 // 所在 FormItem 的字段上下文（用于 blur 自动校验）
 const {
@@ -220,17 +222,6 @@ function getStarClasses(item: number) {
   return classes;
 }
 
-function getActiveStyle(item: number) {
-  const value = displayValue.value;
-  const styles: Record<string, string> = {};
-
-  if (props.allowHalf && item - 0.5 <= value && item > value) {
-    styles.clipPath = 'inset(0 50% 0 0)';
-  }
-
-  return styles;
-}
-
 function getValueFromEvent(item: number, event: MouseEvent): number {
   if (!props.allowHalf) {
     return item;
@@ -238,7 +229,7 @@ function getValueFromEvent(item: number, event: MouseEvent): number {
 
   const target = event.currentTarget as HTMLElement;
   const rect = target.getBoundingClientRect();
-  const offsetX = event.clientX - rect.left;
+  const offsetX = isRightToLeft() ? rect.right - event.clientX : event.clientX - rect.left;
   const isHalf = offsetX < rect.width / 2;
 
   return isHalf ? item - 0.5 : item;
@@ -289,16 +280,18 @@ function commitValue(value: number) {
   formItem?.onFieldChange();
 }
 
-// 键盘操作：左右方向键增减评分
+// 水平方向键跟随文字排列方向，垂直方向键始终保持上下增减。
 function handleKeydown(event: KeyboardEvent) {
   if (effectiveDisabled.value || effectiveReadonly.value || isComposingKeyboardEvent(event)) return;
 
   const step = props.allowHalf ? 0.5 : 1;
+  const incrementKey = isRightToLeft() ? 'ArrowLeft' : 'ArrowRight';
+  const decrementKey = isRightToLeft() ? 'ArrowRight' : 'ArrowLeft';
   let newValue: number;
 
-  if (event.key === 'ArrowRight' || event.key === 'ArrowUp') {
+  if (event.key === incrementKey || event.key === 'ArrowUp') {
     newValue = Math.min(normalizedMax.value, currentValue.value + step);
-  } else if (event.key === 'ArrowLeft' || event.key === 'ArrowDown') {
+  } else if (event.key === decrementKey || event.key === 'ArrowDown') {
     newValue = Math.max(0, currentValue.value - step);
   } else if (event.key === 'Home') {
     newValue = 0;

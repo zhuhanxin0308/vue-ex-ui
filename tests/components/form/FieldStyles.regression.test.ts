@@ -121,9 +121,17 @@ describe('字段实际 DOM 与公开样式契约', () => {
     });
     wrappers.push(wrapper);
     expect(wrapper.get<HTMLElement>('.ex-rate__text').element.style.color).toBe('red');
-    expect(wrapper.get<HTMLElement>('.is-half .ex-rate__icon--active').element.style.clipPath).toBe(
+    const half = wrapper.get('.is-half .ex-rate__icon--active');
+    expect(half.get('.custom-star').text()).toBe('★');
+    const scope = (wrapper.element as HTMLElement)
+      .getAttributeNames()
+      .find(attr => attr.startsWith('data-v-'))!;
+    const selectors = selectorsForToken(
+      'src/components/rate/ExRate.scss',
+      scope,
       'inset(0 50% 0 0)'
     );
+    expect(selectors.some(selector => half.element.matches(selector))).toBe(true);
   });
 
   it.each(['success', 'warning', 'error'] as const)(

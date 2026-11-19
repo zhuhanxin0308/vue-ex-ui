@@ -12,6 +12,63 @@ const wrappers: Array<{ unmount(): void }> = [];
 afterEach(() => wrappers.splice(0).forEach(wrapper => wrapper.unmount()));
 
 describe('选择器重置撤销搜索与节点加载', () => {
+  it.each([true, false])('重置后只接受新组合：受控 %s', async controlled => {
+    const form = ref<FormInstance>();
+    const model = reactive({ choice: null });
+    const queries: string[] = [];
+    const wrapper = mount({
+      render: () =>
+        h(ExForm, { ref: form, model }, () =>
+          h(ExFormItem, { prop: 'choice' }, () =>
+            h(ExSelect, {
+              modelValue: controlled ? model.choice : undefined,
+              searchable: true,
+              remote: true,
+              remoteDebounce: 0,
+              remoteLoader: async query => {
+                queries.push(query);
+                return [];
+              },
+            })
+          )
+        ),
+    });
+    wrappers.push(wrapper);
+    const input = wrapper.get('input');
+    await input.trigger('click');
+    await input.trigger('compositionstart');
+    form.value!.resetFields();
+    await nextTick();
+    input.element.value = '拼音';
+    await input.trigger('compositionend');
+    input.element.value = '拼音';
+    await input.trigger('input', { inputType: 'insertFromComposition' });
+    await new Promise(resolve => setTimeout(resolve, 0));
+    expect(queries).toEqual(['']);
+    expect(input.element.value).toBe('');
+    expect(input.attributes('aria-expanded')).toBe('false');
+    await input.trigger('compositionstart');
+    input.element.value = '新词';
+    await input.trigger('compositionend');
+    await new Promise(resolve => setTimeout(resolve, 0));
+    expect(queries).toEqual(['', '新词']);
+    await input.trigger('compositionstart');
+    form.value!.resetFields();
+    await nextTick();
+    input.element.dispatchEvent(new InputEvent('beforeinput', { inputType: 'insertText' }));
+    input.element.value = 'fresh';
+    input.element.dispatchEvent(new InputEvent('input', { inputType: 'insertText' }));
+    await new Promise(resolve => setTimeout(resolve, 0));
+    expect(queries.at(-1)).toBe('fresh');
+    input.element.value = '过时';
+    await input.trigger('compositionend');
+    input.element.value = '过时';
+    input.element.dispatchEvent(new InputEvent('input', { inputType: 'insertCompositionText' }));
+    await new Promise(resolve => setTimeout(resolve, 0));
+    expect(input.element.value).toBe('fresh');
+    expect(queries).toEqual(['', '新词', 'fresh']);
+  });
+
   it.each(['select', 'tree-select', 'cascader'] as const)(
     '%s 同值重置关闭面板，中止旧请求，重新打开仍可使用',
     async kind => {

@@ -86,6 +86,11 @@
 
       .ex-rate__icon--active {
         opacity: 1;
+        clip-path: inset(0 50% 0 0);
+
+        &:dir(rtl) {
+          clip-path: inset(0 0 0 50%);
+        }
       }
     }
 

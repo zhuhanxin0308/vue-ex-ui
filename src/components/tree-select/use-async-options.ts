@@ -23,6 +23,10 @@ export interface OptionEntry<T> {
   path: OptionValue[];
   disabled: boolean;
 }
+interface IndexedEntry<T> extends OptionEntry<T> {
+  start: number;
+  end: number;
+}
 interface AsyncOptions<T extends AsyncOption<T>> {
   data: () => T[];
   loader: () => ((node: T, context: OptionLoadContext) => Promise<T[]>) | undefined;
@@ -63,7 +67,8 @@ export function useAsyncOptions<T extends AsyncOption<T>>(options: AsyncOptions<
 
   const indexed = computed(() => {
     const data: T[] = [];
-    const entries = new Map<string, OptionEntry<T>>();
+    const entries = new Map<string, IndexedEntry<T>>();
+    const orderedKeys: string[] = [];
     const ancestors = new Set<T>();
     const parents = new WeakMap<OptionEntry<T>, OptionEntry<T>>();
     const stack: Array<{
@@ -71,11 +76,12 @@ export function useAsyncOptions<T extends AsyncOption<T>>(options: AsyncOptions<
       target: T[];
       parent?: OptionEntry<T>;
       disabled: boolean;
-      exit?: boolean;
+      exit?: IndexedEntry<T>;
     }> = safeData.value.map(source => ({ source, target: data, disabled: false })).reverse();
     while (stack.length) {
       const frame = stack.pop()!;
       if (frame.exit) {
+        frame.exit.end = orderedKeys.length;
         ancestors.delete(frame.source);
         continue;
       }
@@ -96,10 +102,12 @@ export function useAsyncOptions<T extends AsyncOption<T>>(options: AsyncOptions<
       if (loaded) node.isLeaf = loaded.children.length === 0;
       frame.target.push(node);
       const disabled = frame.disabled || Boolean(node.disabled);
-      const entry: OptionEntry<T> = {
+      const entry: IndexedEntry<T> = {
         node,
         source,
         disabled,
+        start: orderedKeys.length,
+        end: orderedKeys.length + 1,
         // 唯一值树只在实际加载时生成路径，深树初始化保持线性空间。
         get path() {
           const path: OptionValue[] = [];
@@ -113,16 +121,17 @@ export function useAsyncOptions<T extends AsyncOption<T>>(options: AsyncOptions<
       };
       if (frame.parent) parents.set(entry, frame.parent);
       entries.set(key, entry);
+      orderedKeys.push(key);
       if (children) {
         node.children = [];
         ancestors.add(source);
-        stack.push({ ...frame, exit: true });
+        stack.push({ ...frame, exit: entry });
         for (let index = children.length - 1; index >= 0; index--) {
           stack.push({ source: children[index]!, target: node.children, parent: entry, disabled });
         }
       }
     }
-    return { data, entries };
+    return { data, entries, orderedKeys };
   });
 
   const stateFor = (path: readonly OptionValue[]): OptionLoadState => ({
@@ -133,8 +142,7 @@ export function useAsyncOptions<T extends AsyncOption<T>>(options: AsyncOptions<
     next.set(key, state);
     states.value = next;
   };
-  const cancel = (path: readonly OptionValue[]): boolean => {
-    const key = keyFor(path);
+  const cancelKey = (key: string): boolean => {
     const request = pending.get(key);
     if (!request) return false;
     pending.delete(key);
@@ -144,6 +152,7 @@ export function useAsyncOptions<T extends AsyncOption<T>>(options: AsyncOptions<
     setState(key, { status: branches.value.has(key) ? 'loaded' : 'idle' });
     return true;
   };
+  const cancel = (path: readonly OptionValue[]) => cancelKey(keyFor(path));
   const cancelAll = () => {
     for (const key of [...pending.keys()]) {
       const entry = indexed.value.entries.get(key);
@@ -158,19 +167,15 @@ export function useAsyncOptions<T extends AsyncOption<T>>(options: AsyncOptions<
   };
 
   /** 校验并复制返回结构，拒绝重复身份、循环、无效字段及其他分支身份冲突。 */
-  const cloneChildren = (value: unknown, parent: OptionEntry<T>): T[] => {
+  const cloneChildren = (value: unknown, parent: IndexedEntry<T>, checkConflicts = false): T[] => {
     if (!Array.isArray(value)) throw new TypeError('loadData 必须返回子节点数组');
     const occupied = new Set<string>();
-    for (const [key, entry] of indexed.value.entries) {
-      const isDescendant =
-        entry.path.length > parent.path.length &&
-        parent.path.every((part, index) => part === entry.path[index]);
-      if (!isDescendant) occupied.add(key);
-    }
+    const existingEntries = checkConflicts ? indexed.value.entries : undefined;
     const result: T[] = [];
     const seen = new Set<object>();
+    const basePath = options.identity === 'path' ? parent.path : [];
     const stack = value
-      .map(node => ({ node: node as unknown, target: result, path: parent.path }))
+      .map(node => ({ node: node as unknown, target: result, path: basePath }))
       .reverse();
     while (stack.length) {
       const { node, target, path } = stack.pop()!;
@@ -192,9 +197,16 @@ export function useAsyncOptions<T extends AsyncOption<T>>(options: AsyncOptions<
       if (candidate.children !== undefined && !Array.isArray(candidate.children)) {
         throw new TypeError('子节点 children 必须是数组');
       }
-      const nextPath = [...path, candidate.value];
+      const nextPath = options.identity === 'path' ? [...path, candidate.value] : [candidate.value];
       const key = keyFor(nextPath);
-      if (occupied.has(key)) throw new TypeError('loadData 返回了重复或冲突的选项身份');
+      const existing = existingEntries?.get(key);
+      // 深度优先序中，只有被替换子树内部的已有身份允许重用。
+      if (
+        occupied.has(key) ||
+        (existing && (existing.start <= parent.start || existing.start >= parent.end))
+      ) {
+        throw new TypeError('loadData 返回了重复或冲突的选项身份');
+      }
       occupied.add(key);
       seen.add(node);
       const copy = { ...candidate } as T;
@@ -251,17 +263,14 @@ export function useAsyncOptions<T extends AsyncOption<T>>(options: AsyncOptions<
         if (entry.node.children) input.children = cloneChildren(entry.node.children, entry);
         const value = await loader(input, { signal: controller.signal, path: [...entry.path] });
         if (!isCurrent()) return;
-        const current = indexed.value.entries.get(key)!;
-        const children = cloneChildren(value, current);
+        const { entries, orderedKeys } = indexed.value;
+        const current = entries.get(key)!;
+        const children = cloneChildren(value, current, true);
         const next = new Map(branches.value);
         const nextStates = new Map(states.value);
-        for (const [childKey, child] of indexed.value.entries) {
-          if (
-            child.path.length <= current.path.length ||
-            !current.path.every((part, index) => part === child.path[index])
-          )
-            continue;
-          cancel(child.path);
+        for (let index = current.start + 1; index < current.end; index++) {
+          const childKey = orderedKeys[index]!;
+          cancelKey(childKey);
           next.delete(childKey);
           nextStates.delete(childKey);
           cancelled.delete(childKey);

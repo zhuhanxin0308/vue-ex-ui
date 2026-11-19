@@ -225,7 +225,7 @@ async function validate(
         fieldGroup.map(async field => {
           try {
             const result = await validation.run(field);
-            return { prop, result };
+            return { prop, field, result };
           } catch (error) {
             logger.error(
               `An unexpected error occurred during validation for field "${prop}".`,
@@ -233,11 +233,12 @@ async function validate(
             );
             return {
               prop,
+              field,
               result: {
                 valid: false,
                 error: error instanceof Error ? error.message : String(error),
               },
-            } satisfies { prop: string; result: FormItemValidateResult };
+            } satisfies { prop: string; field: FormItemContext; result: FormItemValidateResult };
           }
         })
       )
@@ -251,10 +252,9 @@ async function validate(
       return { valid: false, errors: [], outOfDate: true };
     }
 
-    const errors = results
-      .filter(({ result }) => !result.valid)
-      .map(({ prop, result }) => createValidationError(prop, result.error));
-    const valid = results.every(({ result }) => result.valid);
+    const failures = results.filter(({ result }) => !result.valid);
+    const errors = failures.map(({ prop, result }) => createValidationError(prop, result.error));
+    const valid = failures.length === 0;
     const result = { valid, errors };
 
     if (callback) {
@@ -262,11 +262,23 @@ async function validate(
     }
 
     // 滚动到第一个错误字段，并将键盘焦点交给对应控件。
-    if (!valid && props.scrollToError && errors.length > 0 && errors[0]) {
+    if (props.scrollToError && failures.length) {
       await nextTick();
-      scrollToField(errors[0].field, props.scrollIntoViewOptions);
-      if (props.focusToError) {
-        focusField(errors[0].field);
+      if (validationId === latestValidationId && validation.isCurrent()) {
+        // 注册顺序可能与当前 DOM 顺序不同；定位最靠前的实际失败实例。
+        let firstElement: HTMLElement | null = null;
+        for (const { field, prop } of failures) {
+          const element = field.element ?? findFieldElement(prop);
+          if (
+            element &&
+            (!firstElement ||
+              firstElement.compareDocumentPosition(element) & Node.DOCUMENT_POSITION_PRECEDING)
+          ) {
+            firstElement = element;
+          }
+        }
+        scrollToElement(firstElement, props.scrollIntoViewOptions);
+        if (props.focusToError) focusField(firstElement);
       }
     }
 
@@ -367,7 +379,13 @@ function findFieldElement(prop: string): HTMLElement | null {
 
 // 滚动到指定字段（限定在当前表单根节点内，避免多个表单同名 prop 互相干扰）。
 function scrollToField(prop: string, options?: ExFormProps['scrollIntoViewOptions']) {
-  const element = findFieldElement(prop);
+  scrollToElement(findFieldElement(prop), options);
+}
+
+function scrollToElement(
+  element: HTMLElement | null,
+  options?: ExFormProps['scrollIntoViewOptions']
+) {
   if (!element || options === false) {
     return;
   }
@@ -379,8 +397,7 @@ function scrollToField(prop: string, options?: ExFormProps['scrollIntoViewOption
   }
 }
 
-function focusField(prop: string) {
-  const element = findFieldElement(prop);
+function focusField(element: HTMLElement | null) {
   const target = element?.querySelector<HTMLElement>(FOCUSABLE_FIELD_SELECTOR) || element;
   if (!target || typeof target.focus !== 'function') {
     return;

@@ -6,6 +6,26 @@ const wrappers: Array<{ unmount(): void }> = [];
 afterEach(() => wrappers.splice(0).forEach(wrapper => wrapper.unmount()));
 
 describe('输入法与动态交互状态回归', () => {
+  it.each(['disabled', 'readonly'] as const)('lazy 草稿进入 %s 后不再参与原生提交', async state => {
+    const form = document.createElement('form');
+    const wrapper = mount(ExInput, {
+      props: { modelValue: 'A', modelModifiers: { lazy: true }, name: 'account' },
+      attachTo: form,
+    });
+    wrappers.push(wrapper);
+    const input = wrapper.get('input');
+    input.element.value = 'B';
+    await input.trigger('input');
+    await wrapper.setProps({ [state]: true });
+    expect(input.element.value).toBe('A');
+    expect(new FormData(form).get('account')).toBe(state === 'readonly' ? 'A' : null);
+    await input.trigger('change');
+    expect(wrapper.emitted('update:modelValue')).toBeUndefined();
+    await wrapper.setProps({ [state]: false });
+    await input.setValue('C');
+    expect(wrapper.emitted('update:modelValue')).toEqual([['C']]);
+  });
+
   it.each([{ isComposing: true }, { keyCode: 229 }])(
     '保留组合输入确认键，不触发业务 enter：%j',
     async composition => {

@@ -608,7 +608,10 @@ function synchronizeConfirmedValue(finishEditing = false): void {
 }
 
 watch([effectiveDisabled, effectiveReadonly], ([disabled, readonly]) => {
-  if (disabled || readonly) discardNativeDraft();
+  if (disabled || readonly) {
+    discardNativeDraft();
+    synchronizeConfirmedValue(true);
+  }
 });
 
 watch(

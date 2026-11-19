@@ -169,12 +169,13 @@ const radioGroupContext = inject(radioGroupContextKey, null);
 const radioId = generateId('ex-radio');
 const radioRef = ref<HTMLInputElement>();
 const isFocused = ref(false);
-const currentErrorMessage = ref('');
+const validationErrorMessage = ref('');
+const currentErrorMessage = computed(() => props.errorMessage || validationErrorMessage.value);
 watch(
   () => formItem?.resetRevision?.value,
   () => {
     // 外部明确提供的错误仍由业务控制，只撤销本地校验反馈。
-    currentErrorMessage.value = props.errorMessage || '';
+    validationErrorMessage.value = '';
   },
   { flush: 'post' }
 );
@@ -374,37 +375,29 @@ const handleBlur = (event: FocusEvent) => {
 // 验证
 const validateRadio = (value: string | number | boolean) => {
   if (!props.rules || props.rules.length === 0) {
-    currentErrorMessage.value = '';
+    validationErrorMessage.value = '';
     return true;
   }
 
   for (const rule of props.rules) {
     const result = rule(value);
     if (result !== true) {
-      currentErrorMessage.value = typeof result === 'string' ? result : t('common.validationError');
+      validationErrorMessage.value =
+        typeof result === 'string' ? result : t('common.validationError');
       return false;
     }
   }
 
-  currentErrorMessage.value = '';
+  validationErrorMessage.value = '';
   return true;
 };
-
-watch(
-  () => props.errorMessage,
-  newError => {
-    // 父级清空 errorMessage 时同步清除，避免残留旧错误
-    currentErrorMessage.value = newError || '';
-  },
-  { immediate: true }
-);
 
 watch(
   [radioValue, () => props.rules],
   () => {
     // 外部错误仍由父级控制，不能被本地模型同步清除。
-    if (!currentErrorMessage.value || props.errorMessage) return;
-    if (radioValue.value === undefined) currentErrorMessage.value = '';
+    if (!validationErrorMessage.value) return;
+    if (radioValue.value === undefined) validationErrorMessage.value = '';
     else validateRadio(radioValue.value);
   },
   { deep: true }

@@ -134,11 +134,12 @@ const hasHelp = useRenderComputed(
 // name 一致——原生单选语义（方向键导航、屏幕阅读器成组）才能生效。
 const radioName = computed(() => props.name || groupId);
 
-const currentErrorMessage = ref('');
+const validationErrorMessage = ref('');
+const currentErrorMessage = computed(() => props.errorMessage || validationErrorMessage.value);
 watch(
   () => formItem?.resetRevision?.value,
   () => {
-    currentErrorMessage.value = props.errorMessage || '';
+    validationErrorMessage.value = '';
   },
   { flush: 'post' }
 );
@@ -209,40 +210,31 @@ const updateValue = (value: RadioValue) => {
 // 验证单选框组
 const validateGroup = (value: RadioValue) => {
   if (!props.rules || props.rules.length === 0) {
-    currentErrorMessage.value = '';
+    validationErrorMessage.value = '';
     return true;
   }
 
   for (const rule of props.rules) {
     const result = rule(value);
     if (result !== true) {
-      currentErrorMessage.value = typeof result === 'string' ? result : t('common.validationError');
+      validationErrorMessage.value =
+        typeof result === 'string' ? result : t('common.validationError');
       return false;
     }
   }
 
-  currentErrorMessage.value = '';
+  validationErrorMessage.value = '';
   return true;
 };
 
 watch(
   [() => props.modelValue, () => props.rules],
   () => {
-    if (!currentErrorMessage.value || props.errorMessage) return;
-    if (confirmedValue.value === undefined) currentErrorMessage.value = '';
+    if (!validationErrorMessage.value) return;
+    if (confirmedValue.value === undefined) validationErrorMessage.value = '';
     else validateGroup(confirmedValue.value);
   },
   { deep: true }
-);
-
-// 监听错误信息变化
-watch(
-  () => props.errorMessage,
-  newError => {
-    // 父级清空 errorMessage 时同步清除，避免残留旧错误
-    currentErrorMessage.value = newError || '';
-  },
-  { immediate: true }
 );
 
 // 提供上下文给子 Radio 组件。

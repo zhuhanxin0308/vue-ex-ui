@@ -5,6 +5,7 @@ import { createSharedInjectionKey } from '../../utils/shared-runtime';
 export interface CheckboxRegistration {
   getValue: () => string | number | undefined;
   isDisabled: () => boolean;
+  isReadonly?: () => boolean;
 }
 
 export interface CheckboxGroupContext {

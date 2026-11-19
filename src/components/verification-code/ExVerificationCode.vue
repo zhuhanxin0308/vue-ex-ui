@@ -153,9 +153,8 @@ const hiddenInputAttrs = computed(() => {
   };
 });
 
-function synchronizeConfirmedValue(force = false) {
-  if (props.modelValue === undefined && !force) return;
-  const filtered = filterValidChars(props.modelValue || '', props.inputMode);
+function projectValue(value: string, force = false) {
+  const filtered = filterValidChars(value, props.inputMode);
   const chars = filtered.slice(0, normalizedLength.value).split('');
   if (chars.join('') !== currentValue.value || force) {
     cancelAutoSubmit();
@@ -166,6 +165,10 @@ function synchronizeConfirmedValue(force = false) {
     focusedIndex.value = Math.min(chars.length, normalizedLength.value - 1);
   }
   if (hiddenInputRef.value) hiddenInputRef.value.value = currentValue.value;
+}
+
+function synchronizeConfirmedValue(force = false) {
+  if (props.modelValue !== undefined || force) projectValue(props.modelValue ?? '', force);
 }
 
 // 监听 modelValue 变化；外部替换撤销原验证码对应的延迟提交。
@@ -184,41 +187,20 @@ watch(
   { flush: 'post' }
 );
 
-// 监听 length 变化
-watch(
-  () => props.length,
-  () => {
-    const newLength = normalizedLength.value;
-    const previousValue = currentValue.value;
-    const currentChars = cells.value.filter(c => c !== '');
-    cells.value = [
-      ...currentChars.slice(0, newLength),
-      ...Array(Math.max(0, newLength - currentChars.length)).fill(''),
-    ];
-    if (focusedIndex.value >= newLength) {
-      focusedIndex.value = Math.max(0, newLength - 1);
-    }
-    const nextValue = currentValue.value;
-    if (nextValue !== previousValue) {
-      emit('update:modelValue', nextValue);
-      emit('input', nextValue);
-      emit('change', nextValue);
-      cancelAutoSubmit();
-    }
+// 放宽约束时重新投影父级当前值；只有当前字符因收紧约束被裁剪时才请求更新。
+watch([normalizedLength, () => props.inputMode], ([length, mode], [, previousMode]) => {
+  const previousValue = currentValue.value;
+  const truncated = filterValidChars(previousValue, mode).slice(0, length) !== previousValue;
+  projectValue(props.modelValue ?? previousValue, true);
+  if (!truncated || currentValue.value === previousValue) return;
+  if (mode !== previousMode) {
+    updateValue();
+  } else {
+    emit('update:modelValue', currentValue.value);
+    emit('input', currentValue.value);
+    emit('change', currentValue.value);
   }
-);
-
-watch(
-  () => props.inputMode,
-  () => {
-    const previousValue = currentValue.value;
-    const filtered = filterValidChars(previousValue, props.inputMode)
-      .slice(0, normalizedLength.value)
-      .split('');
-    cells.value = [...filtered, ...Array(normalizedLength.value - filtered.length).fill('')];
-    if (currentValue.value !== previousValue) updateValue();
-  }
-);
+});
 
 watch(
   () => [disabled.value, readonly.value, props.autoSubmit] as const,

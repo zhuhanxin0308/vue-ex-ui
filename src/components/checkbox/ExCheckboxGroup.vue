@@ -265,6 +265,11 @@ const normalizedMax = computed(() => {
 
 const commitValue = (value: Array<string | number>) => {
   const uniqueValue = [...new Set(value)];
+  if (
+    uniqueValue.length === confirmedValues.value.length &&
+    uniqueValue.every((item, index) => item === confirmedValues.value[index])
+  )
+    return;
   validateGroup(uniqueValue);
   request(uniqueValue);
   emit('update:modelValue', uniqueValue);
@@ -360,52 +365,44 @@ const getAvailableOptions = () => {
       const value = registration.getValue();
       return value === undefined
         ? null
-        : { value, label: String(value), disabled: registration.isDisabled() };
+        : { value, disabled: registration.isDisabled() || registration.isReadonly?.() };
     })
     .filter((option): option is NonNullable<typeof option> => option !== null);
 };
 
-// 暴露方法
-const checkAll = () => {
-  if (currentDisabled.value || currentReadonly.value) return;
-
-  const result = [...new Set(confirmedValues.value)];
-  for (const option of getAvailableOptions()) {
-    if (!option.disabled && !result.includes(option.value) && result.length < normalizedMax.value) {
-      result.push(option.value);
-    }
-  }
-  commitValue(result);
-};
-
-const uncheckAll = () => {
+const updateAll = (action: 'check' | 'uncheck' | 'toggle') => {
   if (currentDisabled.value || currentReadonly.value) return;
 
   const options = getAvailableOptions();
-  const disabledValues = new Set(
-    options.filter(option => option.disabled).map(option => option.value)
+  if (!options.length) return;
+  const locked = new Set(options.filter(option => option.disabled).map(option => option.value));
+  const current = new Set(confirmedValues.value);
+  const additions = options.filter(
+    option => !locked.has(option.value) && !current.has(option.value)
   );
-  const result = confirmedValues.value.filter(value => disabledValues.has(value));
-
-  for (const value of confirmedValues.value) {
-    if (result.length >= normalizedMin.value) break;
-    if (!result.includes(value)) result.push(value);
+  const canAdd = additions.length > 0 && current.size < normalizedMax.value;
+  let result: Array<string | number>;
+  if (action === 'check' || (action === 'toggle' && canAdd)) {
+    for (const option of additions) {
+      if (current.size >= normalizedMax.value) break;
+      current.add(option.value);
+    }
+    result = [...current];
+  } else {
+    const retained = new Set([...current].filter(value => locked.has(value)));
+    for (const value of current) {
+      if (retained.size >= normalizedMin.value) break;
+      retained.add(value);
+    }
+    result = [...current].filter(value => retained.has(value));
   }
-  commitValue(result);
+  if (result.length >= normalizedMin.value && result.length <= normalizedMax.value)
+    commitValue(result);
 };
 
-const toggleAll = () => {
-  if (currentDisabled.value || currentReadonly.value) return;
-
-  const enabledValues = getAvailableOptions()
-    .filter(option => !option.disabled)
-    .map(option => option.value);
-  const allEnabledChecked =
-    enabledValues.length > 0 && enabledValues.every(value => confirmedValues.value.includes(value));
-
-  if (allEnabledChecked) uncheckAll();
-  else checkAll();
-};
+const checkAll = () => updateAll('check');
+const uncheckAll = () => updateAll('uncheck');
+const toggleAll = () => updateAll('toggle');
 
 const getCheckboxGroupElement = () => {
   return groupRef.value || null;
