@@ -600,6 +600,35 @@ describe('ExFileUpload', () => {
       expect(wrapper.emitted('success')).toBeUndefined();
     });
 
+    it('同步取消刚进入 uploading 的文件后，其余文件依次占用并发槽并完成', async () => {
+      const files = ['A', 'B', 'C'].map(name => asUploadFile(makeFile(name, 'text/plain')));
+      const wrapper = mountUpload({
+        props: {
+          defaultFileList: files,
+          action: '/upload',
+          concurrency: 1,
+          'onUpdate:fileList': (list: UploadFile[]) => {
+            if (list[0]?.status === 'uploading') vm.abort(files[0]!.uid);
+          },
+        },
+      });
+      const vm = wrapper.vm as unknown as ExFileUploadExposed;
+      const submitted = vm.submit();
+      for (const [index, name] of ['B', 'C'].entries()) {
+        await flushPromises();
+        const xhr = MockXHR.instances[index]!;
+        const body = xhr.send.mock.calls[0]?.[0] as FormData;
+        expect((body.get('file') as File).name).toBe(name);
+        xhr.triggerLoad();
+      }
+      await expect(submitted).resolves.toMatchObject([
+        { outcome: 'aborted' },
+        { outcome: 'success' },
+        { outcome: 'success' },
+      ]);
+      expect(wrapper.emitted('aborted')).toHaveLength(1);
+    });
+
     it('手动 submit 等待真实 XHR 结束后才兑现 success 结果', async () => {
       const wrapper = mountUpload({ props: { action: '/upload', autoUpload: false } });
       await selectFiles(wrapper, [makeFile('a.txt', 'text/plain')]);

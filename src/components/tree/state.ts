@@ -10,6 +10,8 @@ export interface TreeStateLookup {
   disabledChecks: ComputedRef<ReadonlySet<string>>;
   halfChecked: ComputedRef<ReadonlySet<string>>;
   isExpandable: (node: TreeNode) => boolean;
+  visibleChildren: (node: TreeNode) => TreeNode[] | undefined;
+  onNodeDoubleClick: (node: TreeNode, event: MouseEvent) => void;
   getLoadState: (key: string) => TreeNodeLoadState;
   reload: (key: string) => Promise<boolean>;
 }

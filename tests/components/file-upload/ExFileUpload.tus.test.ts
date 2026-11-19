@@ -57,6 +57,46 @@ describe('FileUpload tus 用户流程', () => {
   beforeEach(() => tasks.splice(0));
   afterEach(() => wrappers.splice(0).forEach(wrapper => wrapper.unmount()));
 
+  it.each(['pause', 'cancel', 'unmount'] as const)(
+    '启动通知中同步执行 %s 时不会创建已停止文件的 tus 资源',
+    async action => {
+      let cancellation: ReturnType<ExFileUploadExposed['cancel']> | undefined;
+      const { vm, wrapper } = create({
+        concurrency: 1,
+        defaultFileList: [makeFile('a'), makeFile('b')],
+        'onUpdate:fileList': (files: UploadFile[]) => {
+          if (files[0]?.status !== 'uploading') return;
+          if (action === 'pause') vm.pause('a');
+          if (action === 'cancel') cancellation = vm.cancel('a');
+          if (action === 'unmount') {
+            wrappers.splice(wrappers.indexOf(wrapper), 1);
+            wrapper.unmount();
+          }
+        },
+      });
+      const submission = vm.submit();
+      await flushPromises();
+      if (action === 'unmount') {
+        expect(tasks).toHaveLength(0);
+        await expect(submission).resolves.toMatchObject([
+          { outcome: 'aborted' },
+          { outcome: 'aborted' },
+        ]);
+      } else {
+        expect(tasks.map(task => task.options.file.uid)).toEqual(['b']);
+        tasks[0]!.resolve({ outcome: 'success', response: {} });
+        await expect(submission).resolves.toMatchObject([
+          { outcome: action === 'pause' ? 'paused' : 'aborted' },
+          { outcome: 'success' },
+        ]);
+        if (action === 'cancel')
+          await expect(cancellation).resolves.toMatchObject([
+            { cancelled: true, terminated: false },
+          ]);
+      }
+    }
+  );
+
   it('表单重置撤销 tus 活动任务和队列，旧资源回调无效且不永久删除服务端文件', async () => {
     const model = reactive({ files: [makeFile('a'), makeFile('b')] });
     const form = ref<FormInstance>();

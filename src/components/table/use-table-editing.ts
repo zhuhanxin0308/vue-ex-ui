@@ -1,6 +1,7 @@
 import { computed, nextTick, onBeforeUnmount, shallowReactive, toRaw, watch } from 'vue';
 import type { ComputedRef } from 'vue';
 import { deepClone } from '../../utils/clone';
+import { isObject } from '../../utils';
 import { useLocale } from '../../locale';
 import { equalEditSnapshot, TableEditConflictError } from './table-editing-state';
 import type { TableColumn, TableDataItem } from './types';
@@ -52,7 +53,7 @@ function replaceRecord(
     const pending = [...data];
     while (pending.length) {
       const record = pending.pop()!;
-      if (visited.has(record)) continue;
+      if (!isObject(record) || visited.has(record)) continue;
       visited.add(record);
       order.push(record);
       const children = record[childrenKey];

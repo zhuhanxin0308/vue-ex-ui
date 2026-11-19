@@ -13,6 +13,45 @@ describe('Table 树形数据与详情展开', () => {
     { key: 'a', name: '甲', children: [{ key: 'a1', name: '甲子' }] },
   ];
 
+  it('初始受控详情解除控制后保留最后确认状态，忽略被拒绝的展开请求', async () => {
+    const wrapper = mount(ExTable, {
+      props: { columns, data, detailExpandedRowKeys: ['b'] },
+      slots: { 'expanded-row': ({ record }) => h('div', String(record.name)) },
+    });
+    await wrapper.get('.ex-table__detail-toggle').trigger('click');
+    expect(wrapper.emitted('update:detailExpandedRowKeys')).toEqual([[[]]]);
+    await wrapper.setProps({ detailExpandedRowKeys: undefined });
+    expect(wrapper.get('.ex-table__expanded-row').text()).toBe('乙');
+    await wrapper.setProps({ detailExpandedRowKeys: ['a'] });
+    await wrapper.setProps({ detailExpandedRowKeys: undefined });
+    expect(wrapper.get('.ex-table__expanded-row').text()).toBe('甲');
+  });
+
+  it('树编辑保留无效兄弟项与其他行，合法嵌套记录仍可不可变提交', async () => {
+    const target = { key: 'target', name: '原值' };
+    const untouched = { key: 'other', children: [null, 42] };
+    const column = { key: 'name', title: '名称', editable: true };
+    const wrapper = mount(ExTable, {
+      props: {
+        columns: [column],
+        data: [untouched, { key: 'root', children: [target] }],
+        tree: true,
+        editable: true,
+        defaultExpandAllRows: true,
+      },
+    });
+    expect(wrapper.findAll('.ex-table__row')).toHaveLength(3);
+    expect(wrapper.vm.startRowEdit(target)).toBe(true);
+    expect(wrapper.vm.setEditValue(target, 2, column, '新值')).toBe(true);
+    expect(await wrapper.vm.saveRowEdit(target)).toBe(true);
+    expect(wrapper.emitted('edit-error')).toBeUndefined();
+    expect(wrapper.emitted('update:data')?.at(-1)?.[0]).toEqual([
+      untouched,
+      { key: 'root', children: [{ key: 'target', name: '新值' }] },
+    ]);
+    expect(target.name).toBe('原值');
+  });
+
   it('显式开启树后按同级排序，树展开与详情展开互不覆盖', async () => {
     const wrapper = mount(ExTable, {
       props: { columns, data, tree: true },

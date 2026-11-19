@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { mount, type VueWrapper } from '@vue/test-utils';
-import { h, nextTick } from 'vue';
+import { createCommentVNode, h, nextTick, ref } from 'vue';
 import ExImage from '../../../src/components/image/ExImage.vue';
 import ExConfigProvider from '../../../src/components/config-provider/ExConfigProvider.vue';
 import { setLocale } from '../../../src/locale';
@@ -42,6 +42,35 @@ describe('ExImage', () => {
     hosts.splice(0).forEach(host => host.remove());
     document.querySelectorAll('.ex-image-preview').forEach(node => node.remove());
     vi.restoreAllMocks();
+  });
+
+  it('挂载后增删具名插槽与空注释仍按当前图片状态呈现回退内容', async () => {
+    const mode = ref<'absent' | 'content' | 'empty'>('absent');
+    const wrapper = mount({
+      setup: () => () => {
+        const value = mode.value;
+        const content = () => (value === 'empty' ? createCommentVNode() : h('span', '自定义内容'));
+        return h(
+          ExImage,
+          { src: '/image.png', alt: '图片' },
+          value === 'absent' ? {} : { error: content, placeholder: content }
+        );
+      },
+    });
+    wrappers.push(wrapper);
+    expect(wrapper.find('.ex-image__spinner').exists()).toBe(true);
+    mode.value = 'content';
+    await nextTick();
+    expect(wrapper.get('[role="status"]').text()).toBe('自定义内容');
+    await wrapper.get('img').trigger('error');
+    expect(wrapper.get('[role="alert"]').text()).toBe('自定义内容');
+    for (const next of ['empty', 'content', 'absent'] as const) {
+      mode.value = next;
+      await nextTick();
+      expect(wrapper.get('[role="alert"]').text()).toBe(
+        next === 'content' ? '自定义内容' : 'Load Error'
+      );
+    }
   });
 
   it('只由原生图片提供图像语义，不重复创建 role=img', () => {

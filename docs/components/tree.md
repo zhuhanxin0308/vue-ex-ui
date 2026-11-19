@@ -402,6 +402,7 @@ const loadChildren: TreeLoadData = (node, { signal }) =>
 | `node-click`           | `(node: TreeNode, event: MouseEvent)`                 |
 | `node-contextmenu`     | `(node: TreeNode, event: MouseEvent)`                 |
 | `node-drag-start`      | `(node: TreeNode, event: DragEvent)`                  |
+| `node-dblclick`        | `(node: TreeNode, event: MouseEvent)`                 |
 | `node-drag-enter`      | `(node: TreeNode, event: DragEvent)`                  |
 | `node-drag-leave`      | `(node: TreeNode, event: DragEvent)`                  |
 | `node-drag-end`        | `(node: TreeNode, event: DragEvent)`                  |

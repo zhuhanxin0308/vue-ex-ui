@@ -293,6 +293,14 @@ describe('ExTree', () => {
       expect(wrapper.findAll('[role="treeitem"]')).toHaveLength(2);
       expect(wrapper.text()).toContain('节点 0');
 
+      viewport.element.scrollTop = 14;
+      await viewport.trigger('scroll');
+      frame?.(0);
+      await nextTick();
+      expect(
+        wrapper.findAll('[role="treeitem"]').map(node => node.attributes('data-node-key'))
+      ).toEqual(['0', '1', '2']);
+
       viewport.element.scrollTop = 140;
       await viewport.trigger('scroll');
       frame?.(0);
@@ -394,7 +402,10 @@ describe('ExTree', () => {
       };
       const wrapper = mount(ExTree, { props: { data, draggable: true } });
       const nodes = wrapper.findAll('[role="treeitem"]');
-      vi.spyOn(nodes[1].element, 'getBoundingClientRect').mockReturnValue({
+      vi.spyOn(
+        nodes[1].get('.ex-tree-node__content').element,
+        'getBoundingClientRect'
+      ).mockReturnValue({
         top: 0,
         bottom: 100,
         left: 0,
@@ -439,6 +450,111 @@ describe('ExTree', () => {
   });
 
   describe('过滤', () => {
+    it.each([false, true])(
+      '筛选投影保留完整交互节点、键盘路径与拖拽身份，virtual=%s',
+      async virtual => {
+        const wrapper = mount(ExTree, {
+          attachTo: document.body,
+          props: {
+            data,
+            virtual,
+            draggable: true,
+            checkable: true,
+            defaultCheckedKeys: ['1'],
+            filterNodeMethod: (_query, node) => ['1-2', '2'].includes(node.key),
+          },
+        });
+        wrapper.vm.filter('后代');
+        await nextTick();
+        const parent = wrapper.get('[data-node-key="1"]');
+        const sibling = wrapper.get('[data-node-key="2"]');
+        expect(wrapper.find('[data-node-key="1-1"]').exists()).toBe(false);
+        await parent.trigger('keydown', { key: 'ArrowRight' });
+        expect(document.activeElement?.getAttribute('data-node-key')).toBe('1-2');
+        await parent.trigger('keydown', { key: ' ' });
+        expect(wrapper.emitted('check')?.at(-1)?.slice(0, 2)).toEqual([[], data[0]]);
+        const payload = new Map<string, string>();
+        const dataTransfer = {
+          setData: (type: string, value: string) => payload.set(type, value),
+          getData: (type: string) => payload.get(type) ?? '',
+        };
+        for (const [source, target] of [
+          [parent, sibling],
+          [sibling, parent],
+        ] as const) {
+          await source.trigger('dragstart', { dataTransfer });
+          await target.trigger('dragover', { dataTransfer });
+          await target.trigger('drop', { dataTransfer });
+        }
+        expect(wrapper.emitted('node-drop')?.map(args => args.slice(0, 2))).toEqual([
+          [data[0], data[1]],
+          [data[1], data[0]],
+        ]);
+        wrapper.unmount();
+      }
+    );
+
+    it.each([false, true])('内置复选框点击后将键盘导航交还给节点，virtual=%s', async virtual => {
+      const wrapper = mount(ExTree, {
+        props: {
+          data,
+          virtual,
+          checkable: true,
+          defaultExpandAll: true,
+          defaultCheckedKeys: ['1-1'],
+        },
+        attachTo: document.body,
+      });
+      const inputs = wrapper.findAll<HTMLInputElement>('input[type="checkbox"]');
+      expect(inputs.every(input => input.element.tabIndex === -1)).toBe(true);
+      const parent = wrapper.get('[data-node-key="1"]');
+      expect(parent.attributes('aria-checked')).toBe('mixed');
+      inputs[0]!.element.focus();
+      inputs[0]!.element.click();
+      await nextTick();
+      expect(document.activeElement).toBe(parent.element);
+      await parent.trigger('keydown', { key: 'ArrowDown' });
+      expect(document.activeElement?.getAttribute('data-node-key')).toBe('1-1');
+      wrapper.unmount();
+    });
+
+    it.each([false, true])('标签激活后回焦输入仍由树行导航，virtual=%s', async virtual => {
+      const wrapper = mount(ExTree, {
+        props: { data, virtual, checkable: true, defaultExpandAll: true },
+        slots: { default: ({ node }: { node: TreeNode }) => h('button', node.label) },
+        attachTo: document.body,
+      });
+      try {
+        const node = wrapper.get<HTMLElement>('[data-node-key="1-1"]');
+        const input = node.get<HTMLInputElement>('input');
+        const sibling = wrapper.get<HTMLElement>('[data-node-key="1-2"]');
+        node.get<HTMLLabelElement>('label').element.click();
+        // WebKit 在转发的原生点击及 change 返回之后，才执行标签对关联控件的聚焦。
+        input.element.focus();
+        await nextTick();
+        expect(node.attributes('aria-checked')).toBe('true');
+        expect(wrapper.emitted('check')).toHaveLength(1);
+        expect(document.activeElement).toBe(node.element);
+        document.activeElement!.dispatchEvent(
+          new KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true })
+        );
+        await nextTick();
+        expect(document.activeElement).toBe(sibling.element);
+        expect(sibling.attributes('tabindex')).toBe('0');
+
+        const action = node.get<HTMLButtonElement>('.ex-tree-node__label button').element;
+        node.get<HTMLLabelElement>('label').element.click();
+        input.element.focus();
+        action.focus();
+        await nextTick();
+        expect(document.activeElement).toBe(action);
+        expect(wrapper.emitted('check')).toHaveLength(2);
+        expect(wrapper.emitted('select')).toBeUndefined();
+      } finally {
+        wrapper.unmount();
+      }
+    });
+
     it('保留命中节点的祖先路径并请求展开祖先', async () => {
       const wrapper = mount(ExTree, {
         props: {

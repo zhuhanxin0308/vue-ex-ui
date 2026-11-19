@@ -14,17 +14,18 @@ export function filterTreeNodes(data: TreeNode[], matches: (node: TreeNode) => b
     result: TreeNode[];
     owner?: TreeNode;
   }
-  const frames: Frame[] = [{ nodes: data, index: 0, result: [] }];
+  const roots: TreeNode[] = [];
+  const children = new Map<string, TreeNode[]>();
+  const frames: Frame[] = [{ nodes: data, index: 0, result: roots }];
   while (frames.length) {
     const frame = frames[frames.length - 1]!;
     if (frame.index === frame.nodes.length) {
       frames.pop();
-      if (!frame.owner) return frame.result;
-      if (frame.result.length)
-        frames[frames.length - 1]!.result.push({
-          ...frame.owner,
-          children: frame.result,
-        });
+      if (frame.owner && frame.result.length) {
+        // 可见关系单独存储，事件、插槽及级联操作始终使用完整节点。
+        children.set(frame.owner.key, frame.result);
+        frames[frames.length - 1]!.result.push(frame.owner);
+      }
       continue;
     }
     const node = frame.nodes[frame.index++]!;
@@ -33,7 +34,7 @@ export function filterTreeNodes(data: TreeNode[], matches: (node: TreeNode) => b
     else if (node.children?.length)
       frames.push({ nodes: node.children, index: 0, result: [], owner: node });
   }
-  return [];
+  return { roots, children };
 }
 
 /** 迭代生成有效树和源节点索引，隔离加载后的结构并避免深树递归溢出。 */

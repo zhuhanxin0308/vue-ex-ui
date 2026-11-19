@@ -34,9 +34,9 @@ export function usePreviewSources(
   const files = shallowRef<PreviewFile[]>([]);
   const sourceFailure = shallowRef<PreviewSourceFailure | null>(null);
   const ready = shallowRef(false);
-  let ownedObjectUrls: string[] = [];
+  let ownedObjectUrls = new Map<Blob, string>();
 
-  const revokeObjectUrls = (urls: string[]): void => {
+  const revokeObjectUrls = (urls: Iterable<string>): void => {
     if (typeof URL === 'undefined' || typeof URL.revokeObjectURL !== 'function') return;
     for (const url of urls) {
       try {
@@ -48,7 +48,7 @@ export function usePreviewSources(
   };
 
   const synchronizeSources = (sources: PreviewSource[]): void => {
-    const nextObjectUrls: string[] = [];
+    const nextObjectUrls = new Map<Blob, string>();
     let nextFailure: PreviewSourceFailure | null = null;
 
     const nextFiles = sources.map<PreviewFile>(source => {
@@ -68,8 +68,9 @@ export function usePreviewSources(
         if (typeof URL === 'undefined' || typeof URL.createObjectURL !== 'function') {
           throw new Error('当前运行环境不支持 Blob 对象地址');
         }
-        file.url = URL.createObjectURL(source);
-        nextObjectUrls.push(file.url);
+        file.url =
+          nextObjectUrls.get(source) ?? ownedObjectUrls.get(source) ?? URL.createObjectURL(source);
+        nextObjectUrls.set(source, file.url);
       } catch (cause) {
         nextFailure ??= {
           error: new ExFilePreviewError('无法为 Blob/File 创建预览地址', {
@@ -83,12 +84,12 @@ export function usePreviewSources(
       return file;
     });
 
-    const previousObjectUrls = ownedObjectUrls;
+    const removed = [...ownedObjectUrls].filter(([source]) => !nextObjectUrls.has(source));
     ownedObjectUrls = nextObjectUrls;
     files.value = nextFiles;
     sourceFailure.value = nextFailure;
     // 等待 Vue 把新地址提交到 DOM，再释放旧地址，避免旧节点在同一渲染帧内失效。
-    void nextTick(() => revokeObjectUrls(previousObjectUrls));
+    void nextTick(() => revokeObjectUrls(removed.map(([, url]) => url)));
   };
 
   const getSources = (): PreviewSource[] => {
@@ -106,8 +107,8 @@ export function usePreviewSources(
   });
 
   onBeforeUnmount(() => {
-    revokeObjectUrls(ownedObjectUrls);
-    ownedObjectUrls = [];
+    revokeObjectUrls(ownedObjectUrls.values());
+    ownedObjectUrls.clear();
   });
 
   return { files, sourceFailure, ready };

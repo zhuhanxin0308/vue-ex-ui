@@ -187,7 +187,8 @@ const activeKey = ref<string | null>(findFirstEnabledKey(treeData.value));
 
 const collectExpandableKeys = (
   nodes: readonly TreeNode[],
-  canExpand = (node: TreeNode) => !node.disabled && loader.isExpandable(node)
+  canExpand = (node: TreeNode) => !node.disabled && loader.isExpandable(node),
+  childrenOf = (node: TreeNode) => node.children
 ): string[] => {
   const keys: string[] = [];
   const pending = [...nodes].reverse();
@@ -195,7 +196,7 @@ const collectExpandableKeys = (
     const node = pending.pop()!;
     if (canExpand(node)) {
       keys.push(node.key);
-      const children = node.children ?? [];
+      const children = childrenOf(node) ?? [];
       for (let index = children.length - 1; index >= 0; index -= 1) pending.push(children[index]!);
     }
   }
@@ -280,13 +281,13 @@ const treeIndex = computed(() => {
 const nodeMap = computed(() => treeIndex.value.nodes);
 
 // 过滤后的数据
-const filteredData = computed(() => {
-  if (!filterValue.value || !props.filterNodeMethod) {
-    return treeData.value;
-  }
-
+const filterProjection = computed(() => {
+  if (!filterValue.value || !props.filterNodeMethod) return undefined;
   return filterTreeNodes(treeData.value, node => props.filterNodeMethod!(filterValue.value, node));
 });
+const filteredData = computed(() => filterProjection.value?.roots ?? treeData.value);
+const visibleChildren = (node: TreeNode) =>
+  filterProjection.value?.children.get(node.key) ?? node.children;
 
 // 样式类
 const treeClasses = computed(() => {
@@ -347,7 +348,7 @@ const flattenedNodes = computed<VisibleTreeNode[]>(() => {
   while (stack.length) {
     const item = stack.pop()!;
     result.push(item);
-    const children = item.node.children;
+    const children = visibleChildren(item.node);
     if (children && expandedKeySet.value.has(item.node.key)) {
       for (let index = children.length - 1; index >= 0; index -= 1) {
         stack.push({
@@ -366,12 +367,10 @@ const virtualRange = computed(() => {
   const total = flattenedNodes.value.length;
   const viewport = safeViewportHeight.value;
   const buffer = safeVirtualBuffer.value;
-  const visibleCount = Math.ceil(viewport / safeItemHeight.value) + buffer * 2;
-  const start = Math.min(
-    Math.max(0, total - visibleCount),
-    Math.max(0, Math.floor(scrollTop.value / safeItemHeight.value) - buffer)
-  );
-  const end = Math.min(total, start + visibleCount);
+  const height = safeItemHeight.value;
+  const top = Math.max(0, Math.min(scrollTop.value, total * height - viewport));
+  const start = Math.max(0, Math.floor(top / height) - buffer);
+  const end = Math.min(total, Math.ceil((top + viewport) / height) + buffer);
   return { start, end };
 });
 
@@ -605,7 +604,7 @@ const handleNavigate = (
   else if (key === 'Home') target = enabledNodes[0];
   else if (key === 'End') target = enabledNodes[enabledNodes.length - 1];
   else if (key === 'ArrowRight') {
-    const child = node.children?.find(item => !item.disabled);
+    const child = visibleChildren(node)?.find(item => !item.disabled);
     target = enabledNodes.find(item => item.node.key === child?.key);
   } else if (key === 'ArrowLeft') {
     const parent = treeIndex.value.parents.get(node.key);
@@ -747,8 +746,10 @@ const filter = (value: string) => {
 
   // 展开筛选后仍有已加载子节点的分支，不为搜索主动加载未知后代。
   if (value && props.filterNodeMethod) {
-    const visibleBranches = collectExpandableKeys(filteredData.value, node =>
-      Boolean(node.children?.length)
+    const visibleBranches = collectExpandableKeys(
+      filteredData.value,
+      node => Boolean(visibleChildren(node)?.length),
+      visibleChildren
     );
     const nextKeys = [...new Set([...effectiveExpandedKeys.value, ...visibleBranches])];
     if (
@@ -770,6 +771,8 @@ provide(TREE_STATE_KEY, {
   disabledChecks: computed(() => treeIndex.value.disabled),
   halfChecked: computed(() => new Set(halfCheckedKeys.value)),
   isExpandable: loader.isExpandable,
+  visibleChildren,
+  onNodeDoubleClick: (node, event) => emit('node-dblclick', node, event),
   getLoadState: getNodeLoadState,
   reload: reloadNode,
 });

@@ -12,7 +12,6 @@
   display: inline-grid;
   max-width: 100%;
   overflow: hidden;
-  container: ex-image / inline-size;
   color: var(--ex-color-text-primary);
   line-height: 0;
   vertical-align: middle;
@@ -23,6 +22,27 @@
     border-color var(--ex-motion-duration-fast) var(--ex-motion-ease-in-out),
     box-shadow var(--ex-motion-duration-fast) var(--ex-motion-ease-in-out),
     transform var(--ex-motion-duration-fast) var(--ex-motion-ease-in-out);
+}
+
+.ex-image--explicit-width {
+  container: ex-image / inline-size;
+}
+
+// 图片在普通流中以固有比例参与行内盒测量，单独指定高度时也能反推宽度。
+.ex-image--loaded {
+  display: inline-block;
+
+  .ex-image__overlay {
+    position: absolute;
+    inset: 0;
+  }
+
+  &:not(.ex-image--explicit-width) .ex-image__img {
+    // 行内盒先以固有尺寸测量，布局完成后图片也能填满业务样式指定的宽度。
+    width: auto;
+    min-width: 100%;
+    max-width: 100%;
+  }
 }
 
 .ex-image__img,

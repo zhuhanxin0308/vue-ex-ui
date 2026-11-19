@@ -109,6 +109,22 @@ describe('上传文件并发调度', () => {
     next.abort();
   });
 
+  it('创建句柄期间同步取消会终止迟到的句柄，同时允许后继任务启动', async () => {
+    const scheduler = createUploadScheduler(() => 1);
+    const first = createTask();
+    const second = createTask();
+    const cancelled = scheduler.enqueue(() => {
+      cancelled.abort();
+      return first.handle;
+    });
+    const next = scheduler.enqueue(() => second.handle);
+    await cancelled.promise;
+    expect(next.pending).toBe(false);
+    await expect(first.handle.promise).resolves.toEqual({ outcome: 'aborted' });
+    second.finish({ outcome: 'success', response: '完成' });
+    await expect(next.promise).resolves.toMatchObject({ outcome: 'success' });
+  });
+
   it.each([0, -1, Number.NaN, 0.5])('非法并发 %s 回退到可运行的默认值', async concurrency => {
     const scheduler = createUploadScheduler(() => concurrency);
     const handle = scheduler.enqueue(() => createTask().handle);

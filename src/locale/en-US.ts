@@ -370,6 +370,7 @@ const enUS = {
 
   // Calendar
   calendar: {
+    checkedIn: 'Checked in',
     prevYear: 'Previous year',
     nextYear: 'Next year',
     prevMonth: 'Previous month',

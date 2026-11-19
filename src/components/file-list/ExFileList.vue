@@ -275,7 +275,8 @@
           @update:expanded-keys="handleExpandedKeysUpdate"
           @select="handleTreeSelect"
           @check="handleTreeCheck"
-          @node-click="handleTreeNodeClick"
+          @node-click="node => handleTreeAction(node, handleClick)"
+          @node-dblclick="node => handleTreeAction(node, handleDblClick)"
         >
           <template #default="{ node }">
             <span class="ex-file-list__tree-node">
@@ -283,6 +284,7 @@
               <span
                 v-if="hasTreeNodeActions(node)"
                 class="ex-file-list__tree-node-actions"
+                @dblclick.stop
               >
                 <ExButton
                   v-if="canPreviewTreeNode(node)"
@@ -499,7 +501,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, nextTick, ref, watch } from 'vue';
+import { computed, nextTick, ref, watch, watchSyncEffect } from 'vue';
 import type { SelectOption, SelectValue } from '../select/types';
 import type { TreeNode } from '../tree/types';
 import type {
@@ -533,6 +535,7 @@ import {
   flattenFileEntries,
   getFileItemIcon,
   getFileItemTimestamp,
+  normalizeFileListKeyword,
   normalizeFileListPageSize,
 } from './file-list-utils';
 import type { FileEntry } from './file-list-utils';
@@ -686,11 +689,58 @@ const normalizedCurrentPage = computed(() =>
   props.showPagination ? clampFileListPage(pageState.value.value, totalPages.value) : 1
 );
 
+const criteria = computed(() => ({
+  search: normalizeFileListKeyword(effectiveSearchValue.value, locale.value),
+  field: effectiveSortField.value,
+  order: effectiveSortOrder.value,
+  view: effectiveViewMode.value,
+}));
+type Criterion = keyof typeof criteria.value;
+const criterionStates = {
+  search: searchState,
+  field: sortFieldState,
+  order: sortOrderState,
+  view: viewState,
+};
+const requests = new Map<Criterion, Map<string, number>>();
+let pageRevision = 0;
+
+function rememberCriterion(key: Criterion, value: string): void {
+  if (!criterionStates[key].isControlled.value || criteria.value[key] === value) return;
+  const pending = requests.get(key) ?? new Map<string, number>();
+  pending.delete(value);
+  pending.set(value, pageRevision);
+  requests.set(key, pending);
+}
+
+function shouldResetPage(key: Criterion, value: string): boolean {
+  const pending = requests.get(key);
+  if (!pending) return true;
+  // 先匹配可识别的确认。父级转换为全新值时，将其关联到最近的请求。
+  const matched = pending.has(value) ? value : [...pending.keys()].at(-1)!;
+  const revision = pending.get(matched);
+  pending.delete(matched);
+  if (pending.size === 0) requests.delete(key);
+  return revision === pageRevision;
+}
+
+watchSyncEffect(() => {
+  for (const key of Object.keys(criterionStates) as Criterion[]) {
+    if (!criterionStates[key].isControlled.value) requests.delete(key);
+  }
+});
 watch(
-  [() => pageState.value.value, totalPages, () => props.showPagination],
-  ([page, pages, paginationVisible]) => {
+  [() => pageState.value.value, totalPages, () => props.showPagination, criteria],
+  ([page, pages, paginationVisible, current], [previousPage, , , previous]) => {
+    const pageChanged = previousPage !== undefined && previousPage !== page;
+    if (pageChanged) pageRevision += 1;
+    let reset = false;
+    for (const key of Object.keys(current) as Criterion[]) {
+      if (!previous || previous[key] === current[key]) continue;
+      if (shouldResetPage(key, current[key])) reset = true;
+    }
     if (!paginationVisible) return;
-    const normalized = clampFileListPage(page, pages);
+    const normalized = reset && !pageChanged ? 1 : clampFileListPage(page, pages);
     if (!Object.is(normalized, page)) pageState.request(normalized);
   },
   { immediate: true }
@@ -733,7 +783,7 @@ const treeExpandedKeys = computed(() => [
 
 const visibleSelectionFiles = computed(() =>
   effectiveViewMode.value === 'tree'
-    ? flattenFileEntries(paginatedRootEntries.value)
+    ? flattenFileEntries(paginatedRootEntries.value, new Set(treeExpandedKeys.value))
     : paginatedFiles.value
 );
 const isAllVisibleSelected = computed(
@@ -792,31 +842,28 @@ const formatType = (file: FileItem): string => {
   return type || '-';
 };
 
-const requestPageReset = () => {
-  if (pageState.value.value !== 1) pageState.request(1);
-};
 const handleSearchInput = (value: string | number) => {
   const nextValue = String(value);
+  rememberCriterion('search', normalizeFileListKeyword(nextValue, locale.value));
   searchState.request(nextValue);
   emit('search', nextValue);
-  requestPageReset();
 };
 const handleSortFieldChange = (value: SelectValue) => {
   if (!isSortField(value)) return;
+  rememberCriterion('field', value);
   sortFieldState.request(value);
   emit('sort', value, effectiveSortOrder.value);
-  requestPageReset();
 };
 const toggleSortOrder = () => {
   const nextOrder: SortOrder = effectiveSortOrder.value === 'asc' ? 'desc' : 'asc';
+  rememberCriterion('order', nextOrder);
   sortOrderState.request(nextOrder);
   emit('sort', effectiveSortField.value, nextOrder);
-  requestPageReset();
 };
 const changeViewMode = (mode: ViewMode) => {
   if (mode === effectiveViewMode.value) return;
+  rememberCriterion('view', mode);
   viewState.request(mode);
-  requestPageReset();
 };
 const handlePageRequest = (page: number) => {
   const normalized = clampFileListPage(page, totalPages.value);
@@ -876,9 +923,9 @@ const handleTreeCheck = (_keys: string[], node: TreeNode, checked: boolean) => {
   const file = resolveTreeFile(node);
   if (file) requestSelection(file, checked);
 };
-const handleTreeNodeClick = (node: TreeNode) => {
+const handleTreeAction = (node: TreeNode, action: (file: FileItem) => void) => {
   const file = resolveTreeFile(node);
-  if (file) emit('click', file);
+  if (file) action(file);
 };
 const handleExpandedKeysUpdate = (keys: string[]) => {
   expandedFolderKeys.value = [...keys];

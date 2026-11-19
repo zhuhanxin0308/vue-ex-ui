@@ -227,6 +227,7 @@ import ExIcon from '../icon/ExIcon.vue';
 import { computed, ref, watch } from 'vue';
 import type { ExPaginationProps, ExPaginationEmits, ExPaginationExposed } from './types';
 import { useLocale } from '../../locale';
+import { DEFAULT_PAGE_SIZE, positiveInteger } from './page-number';
 import { useControllableState } from '../../composables/useControllableState';
 import { useResponsivePagination } from './useResponsivePagination';
 
@@ -257,9 +258,7 @@ const paginationRef = ref<HTMLDivElement>();
 const itemsRef = ref<HTMLDivElement>();
 const measureRef = ref<HTMLSpanElement>();
 
-const normalizePageSize = (value: number) => {
-  return Number.isFinite(value) && value > 0 ? Math.max(1, Math.floor(value)) : 10;
-};
+const normalizePageSize = (value: number) => positiveInteger(value, DEFAULT_PAGE_SIZE);
 
 const normalizedTotal = computed(() => {
   return Number.isFinite(props.total) && props.total > 0 ? Math.floor(props.total) : 0;
@@ -267,7 +266,7 @@ const normalizedTotal = computed(() => {
 
 const sizeState = useControllableState<number>({
   controlledValue: () => props.pageSize,
-  defaultValue: 10,
+  defaultValue: DEFAULT_PAGE_SIZE,
 });
 const currentPageSize = computed(() => normalizePageSize(sizeState.value.value));
 const visiblePageSizes = computed(() =>
@@ -284,8 +283,7 @@ const totalPages = computed(() => {
 
 const normalizePage = (value: number, pageCount = totalPages.value) => {
   if (pageCount === 0) return 0;
-  const page = Number.isFinite(value) ? Math.floor(value) : 1;
-  return Math.max(1, Math.min(pageCount, page));
+  return Math.min(pageCount, positiveInteger(value, 1));
 };
 
 const pageState = useControllableState<number>({

@@ -372,6 +372,7 @@ const zhCN = {
 
   // 日历
   calendar: {
+    checkedIn: '已签到',
     prevYear: '上一年',
     nextYear: '下一年',
     prevMonth: '上个月',

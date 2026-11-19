@@ -178,21 +178,27 @@
     <!-- 周视图 -->
     <div
       v-else-if="activeMode === 'week'"
-      class="ex-calendar__week-view"
+      class="ex-calendar__week-view ex-calendar__grid"
+      role="grid"
+      :aria-label="gridLabel"
     >
-      <div class="ex-calendar__weekdays">
+      <div
+        class="ex-calendar__weekdays"
+        role="row"
+      >
         <div
           v-for="day in weekdays"
           :key="day"
           class="ex-calendar__weekday"
+          role="columnheader"
         >
           {{ day }}
         </div>
       </div>
 
       <div
-        class="ex-calendar__week-body ex-calendar__grid"
-        role="grid"
+        class="ex-calendar__week-body"
+        role="rowgroup"
       >
         <div
           class="ex-calendar__grid-row"
@@ -204,6 +210,8 @@
             :class="getCellClasses(cell)"
             role="gridcell"
             :tabindex="isCellFocusable(cell) ? 0 : -1"
+            :aria-label="dateLabel(cell)"
+            :aria-current="cell.isToday ? 'date' : undefined"
             :aria-selected="isDateSelected(cell.date)"
             :aria-disabled="cell.disabled"
             :data-date="getDateTimestamp(cell.date)"
@@ -274,21 +282,27 @@
     <!-- 月视图 -->
     <div
       v-else-if="activeMode === 'month'"
-      class="ex-calendar__month-view"
+      class="ex-calendar__month-view ex-calendar__grid"
+      role="grid"
+      :aria-label="gridLabel"
     >
-      <div class="ex-calendar__weekdays">
+      <div
+        class="ex-calendar__weekdays"
+        role="row"
+      >
         <div
           v-for="day in weekdays"
           :key="day"
           class="ex-calendar__weekday"
+          role="columnheader"
         >
           {{ day }}
         </div>
       </div>
 
       <div
-        class="ex-calendar__body ex-calendar__grid"
-        role="grid"
+        class="ex-calendar__body"
+        role="rowgroup"
       >
         <div
           v-for="(week, index) in calendarRows"
@@ -302,6 +316,8 @@
             :class="getCellClasses(cell)"
             role="gridcell"
             :tabindex="isCellFocusable(cell) ? 0 : -1"
+            :aria-label="dateLabel(cell)"
+            :aria-current="cell.isToday ? 'date' : undefined"
             :aria-selected="isDateSelected(cell.date)"
             :aria-disabled="cell.disabled"
             :data-date="getDateTimestamp(cell.date)"
@@ -418,6 +434,7 @@ import { computed, ref, watch, shallowRef, onMounted } from 'vue';
 // lunar-javascript 为可选依赖，运行时按需动态加载（仅在开启农历/节气时），
 // 未安装时静默降级——不显示农历与节气，组件其余功能不受影响。
 import { useI18n } from '../../locale';
+import { useCalendarLabels } from './use-calendar-labels';
 import {
   calendarDayNumber,
   cloneDate,
@@ -531,6 +548,7 @@ const modes = computed(() => [
 
 // 星期标题
 const weekdays = computed(() => t('calendar.weekdaysShort').split(','));
+const { gridLabel, dateLabel } = useCalendarLabels(currentDate);
 
 // 上/下一周期的无障碍标签
 const prevPeriodLabel = computed(() => {
