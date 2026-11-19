@@ -73,10 +73,11 @@
 
 <script setup lang="ts">
 import { normalizeCustomClass } from '../../composables/useCustomClass';
-import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
+import { computed, onBeforeUnmount, onMounted, ref, shallowRef, watch } from 'vue';
 import type { ExBarcodeProps, ExBarcodeExposed } from './types';
 import { useI18n } from '../../locale';
 import { generateBarcode } from './barcode-generator';
+import { BarcodeError } from './errors';
 import { MAX_BARCODE_VALUE_LENGTH, normalizeBarcodeOptions } from './barcode-limits';
 import { assertImagePixelBudget } from '../../utils/image-resource';
 import { mergeInlineStyles } from '../../utils/style';
@@ -88,7 +89,6 @@ defineOptions({
 
 const BARCODE_EXPORT_FALLBACK_WIDTH = 300;
 const BARCODE_EXPORT_FALLBACK_HEIGHT = 150;
-const BARCODE_EXPORT_PIXEL_ERROR = 'Barcode image exceeds browser safe pixel limits';
 
 const props = withDefaults(defineProps<ExBarcodeProps>(), {
   value: '',
@@ -112,12 +112,14 @@ const props = withDefaults(defineProps<ExBarcodeProps>(), {
 
 const { t } = useI18n();
 
-// Refs
+// 条码状态与浏览器资源引用。
 const barcodeRef = ref<HTMLDivElement>();
 const svgRef = ref<SVGSVGElement>();
 const loading = ref(false);
-const error = ref(false);
-const errorMessage = ref('');
+const error = shallowRef<BarcodeError | null>(null);
+const errorMessage = computed(() =>
+  error.value ? t(`barcode.${error.value.code}`, { max: MAX_BARCODE_VALUE_LENGTH }) : ''
+);
 let generationId = 0;
 let disposed = false;
 const pendingImageLoadCancels = new Set<() => void>();
@@ -156,17 +158,17 @@ const barcodeStyles = computed(() => {
 // 生成条码
 const generate = async (): Promise<void> => {
   const requestId = ++generationId;
+  // 换值或刷新后立即回收旧解码资源，迟到回调还须核对同一生成身份。
+  for (const cancel of [...pendingImageLoadCancels]) cancel();
   if (!props.value || !svgRef.value) {
     loading.value = false;
-    error.value = true;
-    errorMessage.value = t('barcode.invalidValue');
+    error.value = new BarcodeError('invalidValue', '条码内容不能为空');
     return;
   }
 
   try {
     loading.value = true;
-    error.value = false;
-    errorMessage.value = '';
+    error.value = null;
 
     // 清空 SVG
     svgRef.value.innerHTML = '';
@@ -195,16 +197,15 @@ const generate = async (): Promise<void> => {
         flat: props.flat,
         valid: (valid: boolean) => {
           if (!valid && requestId === generationId && !disposed) {
-            error.value = true;
-            errorMessage.value = t('barcode.invalidValue');
+            error.value = new BarcodeError('invalidValue', '条码内容不符合指定格式');
           }
         },
       })
     );
   } catch (err) {
     if (requestId !== generationId || disposed) return;
-    error.value = true;
-    errorMessage.value = err instanceof Error ? err.message : t('barcode.error');
+    error.value =
+      err instanceof BarcodeError ? err : new BarcodeError('error', '条码生成失败', err);
   } finally {
     if (requestId === generationId && !disposed) loading.value = false;
   }
@@ -258,16 +259,20 @@ const loadSvgImage = (svg: SVGSVGElement): Promise<HTMLImageElement | null> => {
   });
 };
 
-const setExportPixelError = (): void => {
-  if (disposed) return;
-  error.value = true;
-  errorMessage.value = BARCODE_EXPORT_PIXEL_ERROR;
+const isCurrentGeneration = (requestId: number): boolean => !disposed && requestId === generationId;
+
+const setExportPixelError = (requestId: number, cause: unknown): void => {
+  if (!isCurrentGeneration(requestId)) return;
+  error.value = new BarcodeError('pixelLimit', '条码图像超过浏览器像素安全上限', cause);
 };
 
 /** 像素预算检查必须早于 canvas 宽高赋值，避免浏览器先分配超大位图。 */
-const renderExportCanvas = async (svg: SVGSVGElement): Promise<HTMLCanvasElement | null> => {
+const renderExportCanvas = async (
+  svg: SVGSVGElement,
+  requestId: number
+): Promise<HTMLCanvasElement | null> => {
   const image = await loadSvgImage(svg);
-  if (!image || disposed) return null;
+  if (!image || !isCurrentGeneration(requestId)) return null;
 
   const width =
     image.naturalWidth || image.width || svg.clientWidth || BARCODE_EXPORT_FALLBACK_WIDTH;
@@ -275,8 +280,8 @@ const renderExportCanvas = async (svg: SVGSVGElement): Promise<HTMLCanvasElement
     image.naturalHeight || image.height || svg.clientHeight || BARCODE_EXPORT_FALLBACK_HEIGHT;
   try {
     assertImagePixelBudget(width, height);
-  } catch {
-    setExportPixelError();
+  } catch (cause) {
+    setExportPixelError(requestId, cause);
     return null;
   }
 
@@ -298,11 +303,12 @@ const download = (filename?: string): void => {
   const svg = svgRef.value;
   if (!svg || loading.value || error.value || disposed) return;
 
-  void renderExportCanvas(svg).then(canvas => {
-    if (!canvas || disposed) return;
+  const requestId = generationId;
+  void renderExportCanvas(svg, requestId).then(canvas => {
+    if (!canvas || !isCurrentGeneration(requestId)) return;
     try {
       canvas.toBlob(blob => {
-        if (!blob || disposed) return;
+        if (!blob || !isCurrentGeneration(requestId)) return;
         let downloadUrl: string | null = null;
         try {
           downloadUrl = URL.createObjectURL(blob);
@@ -329,8 +335,9 @@ const download = (filename?: string): void => {
 const toDataURL = async (type: 'image/png' | 'image/jpeg' = 'image/png'): Promise<string> => {
   const svg = svgRef.value;
   if (!svg || loading.value || error.value || disposed) return '';
-  const canvas = await renderExportCanvas(svg);
-  if (!canvas || disposed) return '';
+  const requestId = generationId;
+  const canvas = await renderExportCanvas(svg, requestId);
+  if (!canvas || !isCurrentGeneration(requestId)) return '';
 
   try {
     return canvas.toDataURL(type);

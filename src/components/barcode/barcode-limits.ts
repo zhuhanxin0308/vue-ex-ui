@@ -1,4 +1,5 @@
 import type { BarcodeOptions } from './types';
+import { BarcodeError } from './errors';
 
 /**
  * 256 个 CODE128/CODE39 字符在最大模块宽度下约占 2—3 万像素，
@@ -65,8 +66,8 @@ export function normalizeBarcodeOptions(options: BarcodeOptions): BarcodeOptions
 
 /** 在加载 JsBarcode 前拒绝会线性放大 SVG 节点与路径的数据。 */
 export function assertBarcodeValue(value: string): void {
-  if (!value) throw new Error('条码内容不能为空');
+  if (!value) throw new BarcodeError('invalidValue', '条码内容不能为空');
   if (value.length > MAX_BARCODE_VALUE_LENGTH) {
-    throw new Error(`条码内容不能超过 ${MAX_BARCODE_VALUE_LENGTH} 个字符`);
+    throw new BarcodeError('valueTooLong', `条码内容不能超过 ${MAX_BARCODE_VALUE_LENGTH} 个字符`);
   }
 }

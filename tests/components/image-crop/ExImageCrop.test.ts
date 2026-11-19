@@ -287,6 +287,42 @@ describe('ExImageCrop', () => {
     expect(current.emitted('error')).toEqual([[error]]);
   });
 
+  it.each(['source', 'configuration'] as const)(
+    '容器尺寸变化保留尚未解决的 %s 错误',
+    async origin => {
+      if (origin === 'source') {
+        resourceMocks.loadBrowserImageResource.mockRejectedValueOnce(
+          new ExImageCropError('LOAD_FAILED', '图片加载失败')
+        );
+      }
+      const current = await mountCrop(origin === 'configuration' ? { quality: 2 } : {});
+      const message = current.get('[role="alert"]').text();
+      resizeCallback?.(
+        [{ contentRect: { width: 800, height: 600 } } as ResizeObserverEntry],
+        {} as ResizeObserver
+      );
+      await nextTick();
+
+      expect(current.get('[role="alert"]').text()).toBe(message);
+      expect(current.find('.ex-image-crop__crop-box').exists()).toBe(false);
+      expect(current.emitted('error')).toHaveLength(1);
+      if (origin === 'source') await current.setProps({ src: '/recovered.png' });
+      else await current.setProps({ quality: 0.8 });
+      await flushPromises();
+      expect(current.find('[role="alert"]').exists()).toBe(false);
+      expect(current.find('.ex-image-crop__crop-box').exists()).toBe(true);
+    }
+  );
+
+  it('加载错误不会因修改有效的裁剪配置而消失', async () => {
+    resourceMocks.loadBrowserImageResource.mockRejectedValueOnce(
+      new ExImageCropError('LOAD_FAILED', '图片加载失败')
+    );
+    const current = await mountCrop();
+    await current.setProps({ quality: 0.8 });
+    expect(current.get('[role="alert"]').text()).toBe('图片加载失败');
+  });
+
   it('非法运行时配置阻止加载，修正后自动恢复同一来源', async () => {
     const current = await mountCrop({ quality: 2 });
 

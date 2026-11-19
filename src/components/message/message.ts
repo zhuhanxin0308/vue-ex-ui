@@ -43,6 +43,24 @@ interface MessageRecord {
 export const MESSAGE_SERVICE_KEY: InjectionKey<MessageService> =
   createSharedInjectionKey('message-service');
 
+class MessageClosingAllError extends Error {
+  constructor(readonly service: MessageService) {
+    super('Message 服务批量关闭期间不能创建消息');
+  }
+}
+
+const isReopenRejection = (error: unknown, service: MessageService): boolean =>
+  error instanceof MessageClosingAllError && error.service === service;
+
+/** 自动卸载只吸收本服务的重开拒绝，业务回调异常仍交给 Vue 处理。 */
+export function disposeMessageService(service: MessageService): void {
+  try {
+    service.closeAll();
+  } catch (error) {
+    if (!isReopenRejection(error, service)) throw error;
+  }
+}
+
 /** 创建队列、配置、DOM 与回调生命周期完全隔离的 Message 服务。 */
 export function createMessageService(appContext?: AppContext): MessageService {
   let globalConfig: MessageGlobalConfig = { ...DEFAULT_CONFIG };
@@ -50,6 +68,7 @@ export function createMessageService(appContext?: AppContext): MessageService {
   let stopZIndexWatch: (() => void) | undefined;
   let messageContainer: HTMLDivElement | null = null;
   let seed = 0;
+  let closingAll = false;
   const activeQueue: MessageRecord[] = [];
   const records = new Set<MessageRecord>();
 
@@ -94,19 +113,25 @@ export function createMessageService(appContext?: AppContext): MessageService {
     stopZIndexWatch = undefined;
   };
 
+  const throwCloseErrors = (errors: unknown[]): void => {
+    if (!errors.length) return;
+    const businessError = errors.findIndex(error => !isReopenRejection(error, service));
+    throw errors[Math.max(0, businessError)];
+  };
+
   const notifyClose = (record: MessageRecord): void => {
     if (record.callbackCalled) return;
     record.callbackCalled = true;
-    let firstError: unknown;
+    const errors: unknown[] = [];
     // 每一次分组请求都保留自己的完成通知，单个回调失败不能吞掉其余通知。
     for (const callback of record.closeCallbacks.splice(0)) {
       try {
         callback();
       } catch (error) {
-        firstError ??= error;
+        errors.push(error);
       }
     }
-    if (firstError !== undefined) throw firstError;
+    throwCloseErrors(errors);
   };
 
   const finalizeRecord = (record: MessageRecord, invokeClose: boolean): void => {
@@ -121,15 +146,15 @@ export function createMessageService(appContext?: AppContext): MessageService {
   };
 
   const forceCloseRecords = (targets: readonly MessageRecord[]): void => {
-    let firstError: unknown;
+    const errors: unknown[] = [];
     for (const record of targets) {
       try {
         finalizeRecord(record, true);
       } catch (error) {
-        firstError ??= error;
+        errors.push(error);
       }
     }
-    if (firstError !== undefined) throw firstError;
+    throwCloseErrors(errors);
   };
 
   const handleComponentClose = (record: MessageRecord): void => {
@@ -174,17 +199,13 @@ export function createMessageService(appContext?: AppContext): MessageService {
     );
   };
 
-  const enforceLimitBeforeCreate = (): void => {
-    const removeCount = activeQueue.length - globalConfig.maxCount + 1;
-    if (removeCount > 0) forceCloseRecords(activeQueue.slice(0, removeCount));
-  };
-
   const createMessage = (
     input: MessageInput | MessageTypedInput,
     forcedType?: MessageType
   ): MessageInstance => {
     const options = resolveMessageOptions(input, globalConfig, forcedType);
     assertBrowserEnvironment();
+    if (closingAll) throw new MessageClosingAllError(service);
     closeStaleRecords();
 
     const grouped = findGroupedMessage(options);
@@ -195,13 +216,9 @@ export function createMessageService(appContext?: AppContext): MessageService {
       exposed?.resetTimer(options.duration);
       return { id: grouped.id, close: grouped.close };
     }
-    enforceLimitBeforeCreate();
-
     const id = `ex-message-${Date.now()}-${++seed}`;
-    const container = getContainer();
     const wrapper = document.createElement('div');
     wrapper.className = 'ex-message-wrapper';
-    container.appendChild(wrapper);
 
     const vnode = createVNode(ExMessageComponent, {
       type: options.type,
@@ -228,10 +245,21 @@ export function createMessageService(appContext?: AppContext): MessageService {
       close: () => requestClose(record),
     };
 
+    // 关闭回调可以同步创建消息，先预留本次请求，容量始终按真实请求顺序计算。
     activeQueue.push(record);
     records.add(record);
     try {
-      render(vnode, wrapper);
+      const removeCount = activeQueue.length - globalConfig.maxCount;
+      if (removeCount > 0) forceCloseRecords(activeQueue.slice(0, removeCount));
+      if (record.state === 'active') {
+        const container = getContainer();
+        const ordered = [...records];
+        const next = ordered
+          .slice(ordered.indexOf(record) + 1)
+          .find(later => later.wrapper.parentNode === container);
+        container.insertBefore(wrapper, next?.wrapper ?? null);
+        render(vnode, wrapper);
+      }
     } catch (error) {
       finalizeRecord(record, false);
       throw error;
@@ -251,7 +279,13 @@ export function createMessageService(appContext?: AppContext): MessageService {
   };
 
   const closeAll = (): void => {
-    forceCloseRecords([...records]);
+    if (closingAll) return;
+    closingAll = true;
+    try {
+      forceCloseRecords([...records]);
+    } finally {
+      closingAll = false;
+    }
   };
 
   const config = (options: Partial<MessageGlobalConfig>): void => {
@@ -264,7 +298,7 @@ export function createMessageService(appContext?: AppContext): MessageService {
   };
 
   const messageFunction = (input: MessageInput): MessageInstance => createMessage(input);
-  return Object.assign(messageFunction, {
+  const service: MessageService = Object.assign(messageFunction, {
     info: createTypedMessage('info'),
     success: createTypedMessage('success'),
     warning: createTypedMessage('warning'),
@@ -274,6 +308,7 @@ export function createMessageService(appContext?: AppContext): MessageService {
     closeAll,
     config,
   });
+  return service;
 }
 
 /** 直接导入时使用的进程级服务；Vue 插件和 ConfigProvider 均创建隔离实例。 */
@@ -283,9 +318,7 @@ export const message = createMessageService();
 export function useMessageService(): MessageService {
   const scope = useComponentServiceScope();
   if (scope) {
-    return scope.getOrCreate(MESSAGE_SERVICE_KEY, createMessageService, service =>
-      service.closeAll()
-    );
+    return scope.getOrCreate(MESSAGE_SERVICE_KEY, createMessageService, disposeMessageService);
   }
   return inject(MESSAGE_SERVICE_KEY, message);
 }
