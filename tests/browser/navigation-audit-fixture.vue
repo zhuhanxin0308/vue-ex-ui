@@ -60,7 +60,7 @@ const theme = ref<'light' | 'neon-blue'>('neon-blue');
       arrow="always"
     >
       <ExCarouselItem
-        v-for="item in 3"
+        v-for="item in params.has('many') ? 10 : 3"
         :key="item"
       >
         <button
@@ -95,7 +95,8 @@ const theme = ref<'light' | 'neon-blue'>('neon-blue');
       <ExLayout>
         <ExSider
           breakpoint="md"
-          :collapsed="false"
+          collapsible
+          default-collapsed
         >
           <button
             id="sider-action"

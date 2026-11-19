@@ -46,6 +46,36 @@ test('移动端指示器让出内容点击区且轮播在 RTL 反转后保持对
   await page.locator('.ex-carousel').press('ArrowLeft');
   await expect(active).toHaveText('操作 3');
   expect((await bounds(active)).cx).toBeCloseTo((await bounds(viewport)).cx);
+  await page.locator('#direction').click();
+  await page.locator('main').evaluate(el => {
+    el.style.direction = 'rtl';
+  });
+  expect((await bounds(active)).cx).toBeCloseTo((await bounds(viewport)).cx);
+});
+
+test('窄屏可横向滚动十个触摸目标并从两端直接选页', async ({ page }) => {
+  await page.setViewportSize({ width: 320, height: 700 });
+  await page.emulateMedia({ reducedMotion: 'reduce' });
+  await open(page, 'carousel&many');
+  const strip = page.locator('.ex-carousel__indicators');
+  const first = strip.getByRole('button').first();
+  const last = strip.getByRole('button').last();
+  const withinStrip = async (button: Locator) => {
+    const target = await bounds(button);
+    const frame = await bounds(strip);
+    return target.x >= frame.x - 1 && target.right <= frame.right + 1;
+  };
+  await expect.poll(() => withinStrip(first)).toBe(true);
+  expect((await bounds(first)).width).toBeGreaterThanOrEqual(44);
+  await strip.hover();
+  await page.mouse.wheel(900, 0);
+  await expect.poll(() => withinStrip(last)).toBe(true);
+  await last.click();
+  await expect(page.locator('.ex-carousel-item--active')).toHaveText('操作 10');
+  await page.mouse.wheel(-900, 0);
+  await expect.poll(() => withinStrip(first)).toBe(true);
+  await first.click();
+  await expect(page.locator('.ex-carousel-item--active')).toHaveText('操作 1');
 });
 
 test('嵌套锚点的指示球对齐标题的实际中心', async ({ page }) => {
@@ -61,9 +91,15 @@ test('嵌套锚点的指示球对齐标题的实际中心', async ({ page }) => 
 test('独立堆叠上下文中的侧栏按钮实际命中并触发', async ({ page }) => {
   await page.setViewportSize({ width: 375, height: 700 });
   await open(page, 'sider');
+  const trigger = page.locator('.ex-sider__trigger');
+  await trigger.focus();
+  await trigger.press('Enter');
   await expect(page.getByRole('dialog')).toBeVisible();
   await page.locator('#sider-action').click();
   await expect(page.locator('#clicks')).toHaveText('1');
+  await page.keyboard.press('Escape');
+  await expect(trigger).toHaveAttribute('aria-expanded', 'false');
+  await expect(trigger).toBeFocused();
 });
 
 for (const size of ['small', 'medium', 'large']) {

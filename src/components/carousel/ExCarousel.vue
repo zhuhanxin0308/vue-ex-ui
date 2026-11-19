@@ -39,11 +39,12 @@
         @click="prev"
       >
         <slot name="arrow-prev">
-          <ExIcon
-            icon="arrow-left-s-line"
-            :size="24"
+          <span
+            class="ex-carousel__arrow-glyph"
             aria-hidden="true"
-          />
+          >
+            ‹
+          </span>
         </slot>
       </button>
 
@@ -59,11 +60,12 @@
         @click="next"
       >
         <slot name="arrow-next">
-          <ExIcon
-            icon="arrow-right-s-line"
-            :size="24"
+          <span
+            class="ex-carousel__arrow-glyph"
             aria-hidden="true"
-          />
+          >
+            ›
+          </span>
         </slot>
       </button>
     </div>
@@ -92,7 +94,6 @@
 
 <script setup lang="ts">
 import { normalizeCustomClass } from '../../composables/useCustomClass';
-import ExIcon from '../icon/ExIcon.vue';
 import { computed, ref, onMounted, onBeforeUnmount, provide, watch } from 'vue';
 import type { ExCarouselProps, ExCarouselEmits, ExCarouselExposed } from './types';
 import { useI18n } from '../../locale';
@@ -279,17 +280,15 @@ const trackStyles = computed(() => {
 
   if (effect.value === 'slide') {
     if (direction.value === 'horizontal') {
-      styles['--ex-carousel-ltr-transform'] = `translateX(-${currentIndex.value * 100}%)`;
-      styles['--ex-carousel-rtl-transform'] = `translateX(${currentIndex.value * 100}%)`;
-      styles.transition = prefersReducedMotion.value
-        ? 'none'
-        : 'transform 0.3s cubic-bezier(0.4, 0, 0.2, 1)';
+      // 逻辑起点随实际继承的 direction 布局，兼容运行时样式与旧版浏览器。
+      styles.insetInlineStart = `${-currentIndex.value * 100}%`;
     } else {
       styles.transform = `translateY(-${currentIndex.value * 100}%)`;
-      styles.transition = prefersReducedMotion.value
-        ? 'none'
-        : 'transform 0.3s cubic-bezier(0.4, 0, 0.2, 1)';
     }
+    const property = direction.value === 'horizontal' ? 'inset-inline-start' : 'transform';
+    styles.transition = prefersReducedMotion.value
+      ? 'none'
+      : `${property} ${TRANSITION_DURATION_MS}ms cubic-bezier(0.4, 0, 0.2, 1)`;
   } else if (effect.value === 'fade') {
     // Fade 效果由 CSS 处理，移除 transform
     styles.transform = 'none';

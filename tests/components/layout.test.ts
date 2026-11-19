@@ -480,6 +480,28 @@ describe('Layout v2', () => {
       opener.remove();
     });
 
+    it('侧栏从页面移回布局后焦点返回原有内置触发器', async () => {
+      initialMediaMatches = false;
+      const wrapper = mount(ExSider, {
+        attachTo: document.body,
+        props: { breakpoint: 'md', defaultCollapsed: true, collapsible: true },
+        slots: { default: () => h('button', '操作') },
+      });
+      const trigger = wrapper.get<HTMLButtonElement>('.ex-sider__trigger').element;
+      trigger.focus();
+      trigger.click();
+      await nextTick();
+      const action = document.querySelector<HTMLButtonElement>(
+        '[role="dialog"] .ex-sider__content button'
+      )!;
+      action.focus();
+      action.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+      await nextTick();
+      expect(trigger.getAttribute('aria-expanded')).toBe('false');
+      expect(document.activeElement).toBe(trigger);
+      wrapper.unmount();
+    });
+
     it('受控展开侧栏在窄屏显示遮罩，遮罩请求关闭但不篡改状态', async () => {
       initialMediaMatches = false;
       const wrapper = mount(ExSider, {

@@ -77,7 +77,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, inject, onBeforeUnmount, onMounted, ref, watch } from 'vue';
+import { computed, inject, onBeforeUnmount, onMounted, onUpdated, ref, watch } from 'vue';
 import { useOverlay } from '../../composables/useOverlay';
 import { useControllableState } from '../../composables/useControllableState';
 import { useLocale } from '../../locale';
@@ -199,6 +199,27 @@ const overlay = useOverlay({
   restoreFocus: true,
 });
 const isOverlayVisible = overlay.active;
+let internalOpener: HTMLElement | null = null;
+let restoredBeforeMove: HTMLElement | null = null;
+
+watch(isOverlayVisible, opened => {
+  const focused = document.activeElement;
+  if (opened) {
+    internalOpener =
+      focused instanceof HTMLElement && siderRef.value?.contains(focused) ? focused : null;
+  } else {
+    // 只保留浮层栈实际还焦的打开器，避免子抽屉或其他浮层抢走焦点。
+    restoredBeforeMove = focused === internalOpener ? internalOpener : null;
+    internalOpener = null;
+  }
+});
+onUpdated(() => {
+  // Teleport 移动包含焦点的节点会让浏览器回到 body，布局更新后恢复同一节点。
+  if (restoredBeforeMove?.isConnected && document.activeElement === document.body) {
+    restoredBeforeMove.focus({ preventScroll: true });
+  }
+  restoredBeforeMove = null;
+});
 
 let mediaQuery: MediaQueryList | null = null;
 let mediaChangeListener: ((event: MediaQueryListEvent) => void) | null = null;
