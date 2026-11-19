@@ -76,6 +76,7 @@
           :disabled="checkDisabled"
           :tabindex="-1"
           :aria-label="node.label"
+          @focus="focusNodeFromCheckbox"
           @change="handleCheckChange"
         />
       </span>
@@ -350,9 +351,12 @@ const handleContextmenu = (event: MouseEvent) => {
   emit('node-contextmenu', props.node, event);
 };
 
+// 标签可能在派发 change 后才聚焦原生输入，让节点始终接管内置复选框的键盘导航。
+const focusNodeFromCheckbox = () => nodeRootRef.value?.focus({ preventScroll: true });
+
 const handleCheckChange = (val: string | number | boolean, event: Event) => {
   if (checkDisabled.value) return;
-  nodeRootRef.value?.focus();
+  focusNodeFromCheckbox();
   emit('check', props.node, Boolean(val));
 
   // ExCheckbox 使用原生 input；受控父级未接受请求时需恢复真实 prop 状态。

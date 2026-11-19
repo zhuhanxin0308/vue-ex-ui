@@ -518,6 +518,43 @@ describe('ExTree', () => {
       wrapper.unmount();
     });
 
+    it.each([false, true])('标签激活后回焦输入仍由树行导航，virtual=%s', async virtual => {
+      const wrapper = mount(ExTree, {
+        props: { data, virtual, checkable: true, defaultExpandAll: true },
+        slots: { default: ({ node }: { node: TreeNode }) => h('button', node.label) },
+        attachTo: document.body,
+      });
+      try {
+        const node = wrapper.get<HTMLElement>('[data-node-key="1-1"]');
+        const input = node.get<HTMLInputElement>('input');
+        const sibling = wrapper.get<HTMLElement>('[data-node-key="1-2"]');
+        node.get<HTMLLabelElement>('label').element.click();
+        // WebKit 在转发的原生点击及 change 返回之后，才执行标签对关联控件的聚焦。
+        input.element.focus();
+        await nextTick();
+        expect(node.attributes('aria-checked')).toBe('true');
+        expect(wrapper.emitted('check')).toHaveLength(1);
+        expect(document.activeElement).toBe(node.element);
+        document.activeElement!.dispatchEvent(
+          new KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true })
+        );
+        await nextTick();
+        expect(document.activeElement).toBe(sibling.element);
+        expect(sibling.attributes('tabindex')).toBe('0');
+
+        const action = node.get<HTMLButtonElement>('.ex-tree-node__label button').element;
+        node.get<HTMLLabelElement>('label').element.click();
+        input.element.focus();
+        action.focus();
+        await nextTick();
+        expect(document.activeElement).toBe(action);
+        expect(wrapper.emitted('check')).toHaveLength(2);
+        expect(wrapper.emitted('select')).toBeUndefined();
+      } finally {
+        wrapper.unmount();
+      }
+    });
+
     it('保留命中节点的祖先路径并请求展开祖先', async () => {
       const wrapper = mount(ExTree, {
         props: {
