@@ -23,7 +23,15 @@ const buildFixture = async entry =>
         fileName: () => 'fixture.js',
       },
       rollupOptions: {
-        external: ['vue', 'vue-i18n', 'echarts', 'qrcode', 'jsbarcode', 'lunar-javascript'],
+        external: [
+          'vue',
+          'vue/server-renderer',
+          'vue-i18n',
+          'echarts',
+          'qrcode',
+          'jsbarcode',
+          'lunar-javascript',
+        ],
       },
     },
   });

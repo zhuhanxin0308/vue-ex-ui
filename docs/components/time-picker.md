@@ -192,7 +192,7 @@ const time5 = ref('14:00:00');
 
 ## 受控 / 非受控
 
-TimePicker 通过 `v-model` 受控。每次点选时分秒都会实时更新绑定值，点击「此刻」填入当前时间，「确定」关闭面板。
+TimePicker 通过 `v-model` 受控。点选时分秒或点击「此刻」只更新面板内的草稿；点击「确定」才提交完整时间并关闭面板。按 Escape、点击外部或再次点击输入框关闭面板时不提交草稿，下次打开会从已确认值重新初始化。「此刻」会选择最接近当前时间的可选时间，清空按钮则立即请求清空。
 
 ```vue
 <template>
@@ -258,7 +258,7 @@ const rangeDisabledHours = (endpoint?: 'start' | 'end') =>
 端点标签支持左右方向键、Home / End；ArrowDown 进入当前端点的时间列。Escape 丢弃范围草稿并归还焦点。
 
 单值与范围都支持非受控状态：省略对应模型属性时内部保存确认值；显式提供模型后只请求更新并等待父级回写。
-范围选择期间不会发出部分值，父级拒绝或转换回写时输入框始终跟随真实确认值。
+单值与范围选择期间都不会发出部分值，父级拒绝或转换回写时输入框始终跟随真实确认值。
 
 ## API
 
@@ -289,8 +289,8 @@ const rangeDisabledHours = (endpoint?: 'start' | 'end') =>
 
 | 事件名             | 说明                   | 类型                                        |
 | ------------------ | ---------------------- | ------------------------------------------- |
-| update:model-value | 值更新                 | `(value: string) => void`                   |
-| change             | 值变化                 | `(value: string) => void`                   |
+| update:model-value | 请求提交完整时间或清空 | `(value: string) => void`                   |
+| change             | 单值确认提交或清空     | `(value: string) => void`                   |
 | update:range-value | 请求更新完整范围或清空 | `(value: [string, string] \| null) => void` |
 | range-change       | 范围确认提交或清空     | `(value: [string, string] \| null) => void` |
 | focus / blur       | 焦点事件               | `(e: FocusEvent) => void`                   |

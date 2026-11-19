@@ -7,7 +7,10 @@ interface OrderedChild {
 }
 
 /** setup 注册顺序用于首屏与 SSR，挂载后以真实 DOM 校准包装组件内的移动。 */
-export function useOrderedChildren<T extends OrderedChild>(root: Ref<HTMLElement | undefined>) {
+export function useOrderedChildren<T extends OrderedChild>(
+  root: Ref<HTMLElement | undefined>,
+  onSync?: () => void
+) {
   const children = shallowReactive<T[]>([]);
   const indexOf = (uid: symbol) => children.findIndex(child => child.uid === uid);
   const register = (child: T) => {
@@ -29,6 +32,7 @@ export function useOrderedChildren<T extends OrderedChild>(root: Ref<HTMLElement
     if (ordered.some((child, index) => child !== children[index])) {
       children.splice(0, children.length, ...ordered);
     }
+    onSync?.();
   };
 
   let observer: MutationObserver | undefined;
@@ -41,5 +45,5 @@ export function useOrderedChildren<T extends OrderedChild>(root: Ref<HTMLElement
   });
   onUpdated(sync);
   onBeforeUnmount(() => observer?.disconnect());
-  return { children, register, unregister, indexOf };
+  return { children, register, unregister, indexOf, sync };
 }

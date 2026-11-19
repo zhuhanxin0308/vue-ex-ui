@@ -83,6 +83,7 @@ export default defineConfig({
     rollupOptions: {
       external: [
         'vue',
+        'vue/server-renderer',
         'vue-i18n',
         'echarts',
         'qrcode',

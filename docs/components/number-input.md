@@ -616,7 +616,8 @@ const value1 = ref(0);
 
 | 属性                      | 说明                   | 类型                             | 默认值      |
 | ------------------------- | ---------------------- | -------------------------------- | ----------- |
-| `model-value` / `v-model` | 绑定值                 | `number \| null`                 | `null`      |
+| `model-value` / `v-model` | 受控值，省略为非受控   | `number \| null`                 | `undefined` |
+| `default-value`           | 非受控初始值与重置值   | `number \| null`                 | `null`      |
 | `min`                     | 最小值                 | `number`                         | `-Infinity` |
 | `max`                     | 最大值                 | `number`                         | `Infinity`  |
 | `step`                    | 步长                   | `number`                         | `1`         |

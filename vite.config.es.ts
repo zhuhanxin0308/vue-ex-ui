@@ -19,6 +19,7 @@ import browserTargets from './browser-targets.json';
 
 const external = [
   'vue',
+  'vue/server-renderer',
   'vue-i18n',
   'echarts',
   'qrcode',

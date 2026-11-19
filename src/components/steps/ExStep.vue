@@ -1,87 +1,81 @@
 <template>
-  <div
-    ref="stepRef"
-    :class="stepClasses"
-    :style="stepStyles"
-    :role="isClickable ? 'button' : undefined"
-    :tabindex="isClickable && !props.disabled ? 0 : undefined"
-    :aria-current="isCurrent ? 'step' : undefined"
-    :aria-disabled="props.disabled || undefined"
-    @click="handleClick"
-    @keydown="handleKeydown"
-  >
-    <!-- 步骤头部 -->
-    <div class="ex-step__head">
-      <!-- 图标容器 -->
-      <div
-        class="ex-step__icon"
-        :style="iconStyles"
-      >
-        <!-- 普通模式显示图标或数字，进度点模式只保留外层圆点。 -->
-        <template v-if="!stepsContext?.progressDot.value">
-          <!-- 自定义图标插槽 -->
-          <slot name="icon">
-            <!-- 默认图标：根据状态显示 -->
-            <template v-if="statusIcon">
-              <ExIcon
-                :icon="statusIcon"
-                class="ex-step__icon-image"
-                aria-hidden="true"
-              />
-            </template>
-            <!-- 默认显示步骤数字 -->
-            <span
-              v-else
-              class="ex-step__icon-number"
-            >
-              {{ stepNumber }}
-            </span>
-          </slot>
-        </template>
+  <StepContent v-slot="{ rootScope }">
+    <div
+      ref="stepRef"
+      :data-ex-step-index="stepIndex"
+      :data-ex-step-count="stepCount"
+      :class="stepClasses"
+      :style="stepStyles"
+      :role="isClickable ? 'button' : undefined"
+      :tabindex="isClickable && !props.disabled ? 0 : undefined"
+      :aria-current="isCurrent ? 'step' : undefined"
+      :aria-disabled="props.disabled || undefined"
+      v-bind="{ ...$attrs, ...rootScope }"
+      @click="handleClick"
+      @keydown="handleKeydown"
+    >
+      <!-- 步骤头部 -->
+      <div class="ex-step__head">
+        <div
+          class="ex-step__icon"
+          :style="iconStyles"
+        >
+          <!-- 普通模式显示图标或数字，进度点模式只保留外层圆点。 -->
+          <template v-if="!stepsContext?.progressDot.value">
+            <StepOutlet name="icon">
+              <template v-if="statusIcon">
+                <ExIcon
+                  :icon="statusIcon"
+                  class="ex-step__icon-image"
+                  aria-hidden="true"
+                />
+              </template>
+              <span
+                v-else
+                class="ex-step__icon-number"
+              >
+                {{ stepNumber }}
+              </span>
+            </StepOutlet>
+          </template>
+        </div>
+        <div
+          v-if="!isLastStep"
+          class="ex-step__line"
+          :class="lineClasses"
+          :style="lineStyles"
+        />
       </div>
 
-      <!-- 连接线 -->
-      <div
-        v-if="!isLastStep"
-        class="ex-step__line"
-        :class="lineClasses"
-        :style="lineStyles"
-      />
-    </div>
-
-    <!-- 步骤内容 -->
-    <div class="ex-step__content">
-      <!-- 标题 -->
-      <div
-        class="ex-step__title"
-        :style="titleStyles"
-      >
-        <slot name="title">
-          {{ title }}
-        </slot>
-      </div>
-
-      <!-- 子标题 -->
-      <div
-        v-if="subtitle || $slots.subtitle"
-        class="ex-step__subtitle"
-      >
-        <slot name="subtitle">
-          {{ subtitle }}
-        </slot>
-      </div>
-
-      <!-- 描述 -->
-      <div
-        v-if="description || $slots.description"
-        class="ex-step__description"
-      >
-        <slot name="description">
-          {{ description }}
-        </slot>
+      <!-- 步骤内容 -->
+      <div class="ex-step__content">
+        <div
+          class="ex-step__title"
+          :style="titleStyles"
+        >
+          <StepOutlet name="title">
+            {{ title }}
+          </StepOutlet>
+        </div>
+        <div
+          v-if="subtitle || $slots.subtitle"
+          class="ex-step__subtitle"
+        >
+          <StepOutlet name="subtitle">
+            {{ subtitle }}
+          </StepOutlet>
+        </div>
+        <div
+          v-if="description || $slots.description"
+          class="ex-step__description"
+        >
+          <StepOutlet name="description">
+            {{ description }}
+          </StepOutlet>
+        </div>
       </div>
     </div>
-  </div>
+  </StepContent>
 </template>
 
 <script setup lang="ts">
@@ -92,16 +86,19 @@ import {
   inject,
   onBeforeUnmount,
   onMounted,
-  onServerPrefetch,
   ref,
+  useSlots,
 } from 'vue';
 import type { ExStepProps, ExStepExposed } from './types';
-import { stepsContextKey } from './context';
+import { stepsContextKey, stepsHydrationKey } from './context';
+import { StandaloneStepContent, stepContentKey } from './ordered-slot';
+import { createStepOutlet } from './step-outlet';
 import ExIcon from '../icon/ExIcon.vue';
 import { isComposingKeyboardEvent } from '../../utils/keyboard';
 
 defineOptions({
   name: 'ExStep',
+  inheritAttrs: false,
 });
 
 const props = withDefaults(defineProps<ExStepProps>(), {
@@ -116,26 +113,45 @@ const stepsContext = inject(stepsContextKey, null);
 
 // 注册步骤（索引由父组件按文档顺序实时计算，支持动态增删/重排）
 const uid = Symbol('ex-step');
+const slots = useSlots();
+const getSlotNames = () =>
+  stepsContext?.progressDot.value
+    ? ['title', 'subtitle', 'description']
+    : ['icon', 'title', 'subtitle', 'description'];
+const { StepContent, StepOutlet } = inject(stepContentKey, null)?.(uid, slots, getSlotNames) ?? {
+  StepContent: StandaloneStepContent,
+  StepOutlet: createStepOutlet(slots).StepOutlet,
+};
+const renderedElement = getCurrentInstance()?.vnode.el;
+const hydratedElement =
+  typeof HTMLElement !== 'undefined' && renderedElement instanceof HTMLElement
+    ? renderedElement
+    : null;
 stepsContext?.registerStep(
   uid,
-  () => stepRef.value ?? null,
+  () => stepRef.value ?? hydratedElement,
   () => props.disabled
 );
-const stepIndex = computed(() => stepsContext?.getStepIndex(uid) ?? 0);
-
-// 服务端先让同批包装组件完成注册，再输出各步的末项标记和连接线。
-if (stepsContext) onServerPrefetch(() => Promise.resolve());
-
-// 水合会依次创建子实例，首帧复用服务端的末项标记，挂载后交回实时排序。
-const renderedElement = getCurrentInstance()?.vnode.el;
-const hydratedLast = ref<boolean | undefined>(
-  typeof Element !== 'undefined' && renderedElement instanceof Element
-    ? renderedElement.classList.contains('ex-step--last')
-    : undefined
+// 传送目标和异步包装可以比其相邻步骤先水合，首帧复用服务端已求得的位置。
+const initialIndex = hydratedElement?.dataset.exStepIndex;
+const initialCount = hydratedElement?.dataset.exStepCount;
+const initialLast = hydratedElement?.classList.contains('ex-step--last');
+const ownHydration = ref(initialIndex !== undefined);
+const parentHydration = inject(stepsHydrationKey, null);
+const useInitialPosition = computed(
+  () => initialIndex !== undefined && (ownHydration.value || parentHydration?.value)
 );
 onMounted(() => {
-  hydratedLast.value = undefined;
+  ownHydration.value = false;
 });
+const stepIndex = computed(() =>
+  useInitialPosition.value ? Number(initialIndex) : (stepsContext?.getStepIndex(uid) ?? 0)
+);
+const stepCount = computed(() =>
+  useInitialPosition.value && initialCount !== undefined
+    ? Number(initialCount)
+    : (stepsContext?.stepCount.value ?? 1)
+);
 
 // 组件卸载时注销
 onBeforeUnmount(() => {
@@ -147,8 +163,8 @@ const stepNumber = computed(() => stepIndex.value + 1);
 
 const isCurrent = computed(() => stepIndex.value === stepsContext?.current.value);
 
-const isLastStep = computed(
-  () => hydratedLast.value ?? stepIndex.value === (stepsContext?.stepCount.value ?? 1) - 1
+const isLastStep = computed(() =>
+  useInitialPosition.value ? initialLast : stepIndex.value === stepCount.value - 1
 );
 
 const currentStatus = computed(() => {
