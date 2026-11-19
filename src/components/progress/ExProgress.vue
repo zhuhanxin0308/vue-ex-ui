@@ -614,11 +614,10 @@ function generateWavePath(
   return path;
 }
 
-const createRectWavePaths = (offset: number) => {
-  const amplitude = props.waveAmplitude;
-  const width = waveWidth.value;
-  const height = waveHeight.value;
+const createWavePaths = (offset: number, width: number, height: number) => {
   const waveY = height * (1 - percentage.value / 100);
+  // 上沿距上下边界的最短距离限制振幅，任意相位下都能连续收敛至端点。
+  const amplitude = Math.min(Math.abs(props.waveAmplitude), waveY, height - waveY);
   return {
     primary: generateWavePath(waveY, offset, amplitude, WAVE_BASE_FREQUENCY, width, height),
     secondary: generateWavePath(
@@ -632,26 +631,11 @@ const createRectWavePaths = (offset: number) => {
   };
 };
 
+const createRectWavePaths = (offset: number) =>
+  createWavePaths(offset, waveWidth.value, waveHeight.value);
+const createCircleWavePaths = (offset: number) =>
+  createWavePaths(offset, circleWidth.value, circleWidth.value);
 const rectWavePaths = computed(() => createRectWavePaths(waveOffset));
-
-const createCircleWavePaths = (offset: number) => {
-  const amplitude = props.waveAmplitude;
-  const width = circleWidth.value;
-  const height = circleWidth.value;
-  const waveY = height * (1 - percentage.value / 100);
-  return {
-    primary: generateWavePath(waveY, offset, amplitude, WAVE_BASE_FREQUENCY, width, height * 2),
-    secondary: generateWavePath(
-      waveY,
-      offset + WAVE_PHASE_OFFSET,
-      amplitude * WAVE_SECONDARY_AMPLITUDE_RATIO,
-      WAVE_SECONDARY_FREQUENCY,
-      width,
-      height * 2
-    ),
-  };
-};
-
 const circleWavePaths = computed(() => createCircleWavePaths(waveOffset));
 
 function updateWaveAnimation() {

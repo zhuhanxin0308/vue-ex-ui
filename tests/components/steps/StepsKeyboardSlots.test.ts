@@ -107,6 +107,7 @@ describe('步骤子项的交互与内容', () => {
     await first.trigger('keydown', { key: ' ' });
     expect(wrapper.emitted('change')).toEqual([[0]]);
     await first.get('input').trigger('keydown', { key: 'Enter' });
+    await first.get('input').trigger('click');
     await first.trigger('keydown', { key: 'Enter', isComposing: true });
     await first.trigger('keydown', { key: 'Escape' });
     await wrapper.findAllComponents(ExStep)[2]!.trigger('keydown', { key: 'Enter' });

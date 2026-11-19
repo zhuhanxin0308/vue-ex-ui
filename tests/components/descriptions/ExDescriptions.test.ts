@@ -1,6 +1,7 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { mount } from '@vue/test-utils';
-import { createCommentVNode, h, nextTick, ref } from 'vue';
+import { createCommentVNode, createSSRApp, defineComponent, h, nextTick, ref } from 'vue';
+import { renderToString } from 'vue/server-renderer';
 import ExDescriptions from '../../../src/components/descriptions/ExDescriptions.vue';
 import ExDescriptionsItem from '../../../src/components/descriptions/ExDescriptionsItem.vue';
 
@@ -19,6 +20,69 @@ const mountDesc = (
   });
 
 describe('ExDescriptions', () => {
+  const directions = ['horizontal', 'vertical'] as const;
+  it.each(directions)('%s 重排和跨行时保留 keyed 插槽实例', async direction => {
+    const values = ref(['甲', '乙', '丙', '丁']);
+    const columns = ref(2);
+    const span = ref(1);
+    const Editor = defineComponent({
+      setup() {
+        const draft = ref('');
+        return () =>
+          h('input', {
+            value: draft.value,
+            onInput: (event: Event) => {
+              draft.value = (event.target as HTMLInputElement).value;
+            },
+          });
+      },
+    });
+    const Host = defineComponent({
+      setup: () => () =>
+        h(ExDescriptions, { column: columns.value, direction }, () =>
+          values.value.map(label =>
+            h(
+              ExDescriptionsItem,
+              { key: label, label, span: label === '丙' ? span.value : 1 },
+              () => h(Editor, { 'aria-label': label })
+            )
+          )
+        ),
+    });
+    const root = document.createElement('div');
+    root.innerHTML = await renderToString(createSSRApp(Host));
+    document.body.append(root);
+    const input = root.querySelector<HTMLInputElement>('[aria-label="甲"]')!;
+    const app = createSSRApp(Host);
+    const warn = vi.fn();
+    app.config.warnHandler = warn;
+    app.mount(root);
+    expect(warn).not.toHaveBeenCalled();
+    input.value = '草稿';
+    input.dispatchEvent(new Event('input'));
+    for (const order of [
+      ['乙', '甲', '丙', '丁'],
+      ['戊', '乙', '丙', '甲'],
+      ['丙', '甲'],
+    ]) {
+      values.value = order;
+      await nextTick();
+      const inputs = Array.from(root.querySelectorAll<HTMLInputElement>('td:not([hidden]) input'));
+      expect(inputs.map(el => el.getAttribute('aria-label'))).toEqual(order);
+      expect(root.querySelector('[aria-label="甲"]')).toBe(input);
+      expect(input.value).toBe('草稿');
+    }
+    span.value = 2;
+    await nextTick();
+    const headerId = input.closest('td')!.headers;
+    expect(document.getElementById(headerId)?.textContent).toContain('甲');
+    columns.value = 1;
+    await nextTick();
+    expect(root.querySelector('[aria-label="甲"]')).toBe(input);
+    app.unmount();
+    root.remove();
+  });
+
   it('注释插槽不生成孤立冒号和无名称表头，动态标题恢复关联', async () => {
     const show = ref(false);
     const wrapper = mount({

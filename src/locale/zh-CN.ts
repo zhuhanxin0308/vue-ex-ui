@@ -488,6 +488,7 @@ const zhCN = {
 
   // 标签页
   tabs: {
+    selectTab: '选择标签页',
     add: '添加',
     close: '关闭',
     more: '更多',

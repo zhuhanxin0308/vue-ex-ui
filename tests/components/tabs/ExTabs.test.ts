@@ -10,6 +10,25 @@ import type {
 } from '../../../src/components/tabs/types';
 
 describe('ExTabs', () => {
+  it('横向溢出选单区分数值和字符串键，并遵守受控状态', async () => {
+    const wrapper = mount(ExTabs, {
+      props: { modelValue: 3 },
+      slots: {
+        default: () => [3, '3', 5].map(name => h(ExTabPane, { name, disabled: name === 5 })),
+      },
+    });
+    Object.defineProperty(wrapper.get('.ex-tabs__nav').element, 'scrollWidth', { value: 450 });
+    Object.defineProperty(wrapper.get('.ex-tabs__nav-wrap').element, 'clientWidth', { value: 300 });
+    await wrapper.setProps({ size: 'small' });
+    await nextTick();
+    const select = wrapper.get<HTMLSelectElement>('select');
+    await select.setValue('1');
+    expect(wrapper.emitted('update:modelValue')).toEqual([['3']]);
+    expect(wrapper.get('[aria-selected="true"]').attributes('id')).toContain('-number-');
+    expect(select.element.options[3]!.disabled).toBe(true);
+    wrapper.unmount();
+  });
+
   it('renders correctly with default props', () => {
     const wrapper = mount(ExTabs, {
       props: { modelValue: 'tab1' },

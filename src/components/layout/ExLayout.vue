@@ -18,7 +18,8 @@ const props = defineProps<ExLayoutProps>();
 const layoutRef = ref<HTMLDivElement>();
 const siderCount = ref(0);
 
-const registerSider = (): (() => void) => {
+const registerSider = (element: HTMLElement): (() => void) | undefined => {
+  if (element.parentElement !== layoutRef.value) return;
   siderCount.value += 1;
   let registered = true;
   return () => {

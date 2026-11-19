@@ -3,6 +3,7 @@ import { afterEach, expect, it, vi } from 'vitest';
 import { defineComponent, h, nextTick, ref } from 'vue';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
+import { compile } from 'sass-embedded';
 import ExCarousel from '../../../src/components/carousel/ExCarousel.vue';
 import ExCarouselItem from '../../../src/components/carousel/ExCarouselItem.vue';
 import type { ExCarouselExposed } from '../../../src/components/carousel/types';
@@ -26,6 +27,27 @@ describe('ExCarousel', () => {
   afterEach(() => {
     vi.unstubAllGlobals();
     vi.restoreAllMocks();
+  });
+
+  it('已选页面按逻辑起点偏移，多指示器保留原生滚动入口', async () => {
+    const sheet = document.createElement('style');
+    sheet.textContent = compile(resolve('src/components/carousel/ExCarousel.scss')).css;
+    document.head.append(sheet);
+    const wrapper = mount(ExCarousel, {
+      attachTo: document.body,
+      props: { autoplay: false, modelValue: 1, indicatorPosition: 'top' },
+      slots: { default: () => Array.from({ length: 10 }, (_, i) => h(ExCarouselItem, { key: i })) },
+    });
+    try {
+      await nextTick();
+      const track = getComputedStyle(wrapper.get('.ex-carousel__track').element);
+      expect.soft(track.insetInlineStart).toBe('-100%');
+      const indicators = getComputedStyle(wrapper.get('.ex-carousel__indicators').element);
+      expect(indicators.overflowX).toBe('auto');
+    } finally {
+      wrapper.unmount();
+      sheet.remove();
+    }
   });
 
   it('非活动轮播项使用 inert 隔离内部焦点', async () => {

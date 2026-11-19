@@ -121,8 +121,8 @@ const writeBreakpointStyles = (
     styles[`${prefix}-max-width`] = width;
   }
   styles[`${prefix}-offset`] = toPercentage(state.offset);
-  styles[`${prefix}-push`] = toPercentage(state.push);
-  styles[`${prefix}-pull`] = toPercentage(state.pull);
+  styles[`${prefix}-push`] = state.push ? toPercentage(state.push) : 'auto';
+  styles[`${prefix}-pull`] = state.pull ? toPercentage(state.pull) : 'auto';
   styles[`${prefix}-order`] = String(state.order);
 };
 

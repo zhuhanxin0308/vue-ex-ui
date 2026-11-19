@@ -7,6 +7,20 @@ const wrappers: Array<{ unmount(): void }> = [];
 afterEach(() => wrappers.splice(0).forEach(wrapper => wrapper.unmount()));
 
 describe('Pagination 严格受控', () => {
+  it('容量不在选项内时展示当前值，配置变更不请求更新', async () => {
+    const wrapper = mount(ExPagination, {
+      props: { total: 100, pageSize: 25, showSizeChanger: true },
+    });
+    wrappers.push(wrapper);
+    const select = wrapper.get<HTMLSelectElement>('select');
+    expect(select.element.value).toBe('25');
+    await wrapper.setProps({ pageSize: 15, pageSizeOptions: [15, 10] });
+    expect(Array.from(select.element.options, option => option.value)).toEqual(['15', '10']);
+    await wrapper.setProps({ pageSizeOptions: [10] });
+    expect(select.element.value).toBe('15');
+    expect(wrapper.emitted('update:pageSize')).toBeUndefined();
+  });
+
   it('页码和容量均受控时只请求更新，原生控件也恢复已确认值', async () => {
     const wrapper = mount(ExPagination, {
       props: { current: 4, pageSize: 10, total: 200, showSizeChanger: true, showQuickJumper: true },

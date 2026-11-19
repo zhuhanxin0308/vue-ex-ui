@@ -5,7 +5,7 @@ export interface ExAffixProps {
   /** 距离滚动容器底部达到该偏移量后固定。 */
   offsetBottom?: number;
   /** 返回需要监听的滚动容器。 */
-  target?: () => HTMLElement | Window;
+  target?: () => HTMLElement | Window | null | undefined;
   /** 固定内容的层叠顺序。 */
   zIndex?: number;
 }
