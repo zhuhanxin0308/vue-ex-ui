@@ -104,13 +104,7 @@ export function useUploadTransfers(options: TransferOptions) {
     const scope = scopeRevision;
     const isCurrent = () =>
       !destroyed.value && scope === scopeRevision && active.get(file.uid) === task;
-    patchFile(file.uid, {
-      status: 'queued',
-      error: undefined,
-      percent: props.transport === 'tus' && resourceUrl(file) ? (file.percent ?? 0) : 0,
-    });
-    const handle = scheduler.enqueue(() => {
-      patchFile(file.uid, { status: 'uploading', error: undefined });
+    const createTransport = () => {
       const requestOptions = {
         file,
         action: props.action!,
@@ -150,7 +144,10 @@ export function useUploadTransfers(options: TransferOptions) {
         data: props.data,
         name: props.name,
       });
-    });
+    };
+    const handle = scheduler.enqueue(createTransport, () =>
+      patchFile(file.uid, { status: 'uploading', error: undefined })
+    );
     task.handle = handle;
     task.result = handle.promise.then(result => {
       if (!isCurrent()) return stoppedResult(task);
@@ -193,7 +190,13 @@ export function useUploadTransfers(options: TransferOptions) {
       return { uid: file.uid, ...result };
     });
     active.set(file.uid, task);
-    if (['paused', 'error'].includes(file.status)) emit('resumed', { ...file }, snapshot());
+    patchFile(file.uid, {
+      status: 'queued',
+      error: undefined,
+      percent: props.transport === 'tus' && resourceUrl(file) ? (file.percent ?? 0) : 0,
+    });
+    if (isCurrent() && ['paused', 'error'].includes(file.status))
+      emit('resumed', { ...file }, snapshot());
     return task.result;
   };
   const submit = (file?: UploadFile | string) =>

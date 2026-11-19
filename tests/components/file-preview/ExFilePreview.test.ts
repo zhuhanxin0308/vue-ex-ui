@@ -120,9 +120,20 @@ describe('ExFilePreview', () => {
         'blob:first'
       );
 
-      await wrapper.setProps({ file: second });
+      document.querySelector<HTMLButtonElement>('[aria-label="Zoom in"]')!.click();
+      document.querySelector<HTMLButtonElement>('[aria-label="Rotate clockwise"]')!.click();
+      await wrapper.setProps({ files: [first, second, first] });
+      expect(createObjectURL).toHaveBeenCalledTimes(2);
+      expect(revokeObjectURL).not.toHaveBeenCalled();
+      expect(document.querySelector<HTMLElement>('.ex-file-preview__image')!.style.transform).toBe(
+        'scale(1.1) rotate(90deg)'
+      );
+      await wrapper.setProps({ files: [second] });
       await nextTick();
       expect(revokeObjectURL).toHaveBeenCalledWith('blob:first');
+      expect(document.querySelector<HTMLElement>('.ex-file-preview__image')!.style.transform).toBe(
+        'scale(1) rotate(0deg)'
+      );
       expect(document.querySelector('.ex-file-preview__image')?.getAttribute('src')).toBe(
         'blob:second'
       );
@@ -130,6 +141,7 @@ describe('ExFilePreview', () => {
       wrapper.unmount();
       wrappers.splice(wrappers.indexOf(wrapper), 1);
       expect(revokeObjectURL).toHaveBeenCalledWith('blob:second');
+      expect(revokeObjectURL).toHaveBeenCalledTimes(2);
     });
 
     it('对象地址创建失败时保留结构化根因并进入无效来源状态', async () => {

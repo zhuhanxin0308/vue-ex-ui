@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 import { mount } from '@vue/test-utils';
 import { nextTick } from 'vue';
 import ExCalendar from '../../../src/components/calendar/ExCalendar.vue';
+import { setLocale } from '../../../src/locale';
 import type { ExCalendarExposed } from '../../../src/components/calendar/types';
 
 const wrappers: Array<{ unmount(): void }> = [];
@@ -70,9 +71,35 @@ describe('日历日期导航和网格语义', () => {
   it.each(['month', 'week'] as const)('%s 网格为日期单元格提供七列行结构', mode => {
     const wrapper = mount(ExCalendar, { props: { mode, showSolarTerm: false } });
     wrappers.push(wrapper);
-    const rows = wrapper.findAll('[role="grid"] > [role="row"]');
+    const grid = wrapper.get('[role="grid"]');
+    expect(grid.findAll('[role="row"] > [role="columnheader"]')).toHaveLength(7);
+    const rows = grid.findAll('.ex-calendar__grid-row[role="row"]');
     expect(rows.length).toBeGreaterThan(0);
     expect(rows.every(row => row.findAll(':scope > [role="gridcell"]').length === 7)).toBe(true);
     expect(wrapper.findAll('[role="grid"] > [role="gridcell"]')).toHaveLength(0);
+  });
+
+  it('跨月同日拥有本地化完整日期和签到名称', async () => {
+    const march = new Date(2025, 2, 1);
+    const april = new Date(2025, 3, 1);
+    const wrapper = mount(ExCalendar, { props: { modelValue: march, checkedInDates: [march] } });
+    wrappers.push(wrapper);
+    try {
+      for (const locale of ['en-US', 'zh-CN'] as const) {
+        setLocale(locale);
+        await nextTick();
+        const formatter = new Intl.DateTimeFormat(locale, { dateStyle: 'full' });
+        const first = wrapper.get(`[data-date="${march.getTime()}"]`);
+        expect(first.attributes('aria-label')).toContain(formatter.format(march));
+        expect(first.attributes('aria-label')).toContain(
+          locale === 'zh-CN' ? '已签到' : 'Checked in'
+        );
+        expect(wrapper.get(`[data-date="${april.getTime()}"]`).attributes('aria-label')).toContain(
+          formatter.format(april)
+        );
+      }
+    } finally {
+      setLocale('en-US');
+    }
   });
 });

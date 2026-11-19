@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  hasExplicitImageDimension,
   normalizeImageAspectRatio,
   normalizeImageDimension,
   normalizeImageRadius,
@@ -20,6 +21,15 @@ describe('image utilities', () => {
     expect(normalizeImageDimension('max-content')).toBe('max-content');
     expect(normalizeImageDimension('calc(100% - 2rem)')).toBe('calc(100% - 2rem)');
     expect(normalizeImageDimension('var(--image-width)')).toBe('var(--image-width)');
+  });
+
+  it('依赖内容的宽度不启动内联尺寸隔离，确定宽度允许尺寸查询', () => {
+    for (const width of [undefined, 'auto', 'min-content', 'max-content', 'fit-content(12rem)']) {
+      expect(hasExplicitImageDimension(normalizeImageDimension(width))).toBe(false);
+    }
+    for (const width of [0, '20%', 'clamp(2rem, 20vw, 30rem)']) {
+      expect(hasExplicitImageDimension(normalizeImageDimension(width))).toBe(true);
+    }
   });
 
   it('拒绝负数、非有限值、空值与可破坏声明边界的字符串', () => {

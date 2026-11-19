@@ -12,7 +12,6 @@
   display: inline-grid;
   max-width: 100%;
   overflow: hidden;
-  container: ex-image / inline-size;
   color: var(--ex-color-text-primary);
   line-height: 0;
   vertical-align: middle;
@@ -23,6 +22,29 @@
     border-color var(--ex-motion-duration-fast) var(--ex-motion-ease-in-out),
     box-shadow var(--ex-motion-duration-fast) var(--ex-motion-ease-in-out),
     transform var(--ex-motion-duration-fast) var(--ex-motion-ease-in-out);
+}
+
+.ex-image--explicit-width {
+  container: ex-image / inline-size;
+}
+
+// 图片在普通流中以固有比例参与行内盒测量，单独指定高度时也能反推宽度。
+.ex-image--loaded {
+  display: inline-block;
+
+  .ex-image__overlay {
+    position: absolute;
+    inset: 0;
+  }
+
+  &:not(.ex-image--explicit-width) .ex-image__img {
+    width: auto;
+    max-width: 100%;
+  }
+
+  &:not(.ex-image--explicit-height, .ex-image--aspect-ratio) .ex-image__img {
+    height: auto;
+  }
 }
 
 .ex-image__img,

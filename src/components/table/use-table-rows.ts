@@ -1,5 +1,7 @@
 import { computed, ref, watch, toRaw, type ComputedRef } from 'vue';
 import { logger } from '../../utils/logger';
+import { isObject } from '../../utils';
+import { DEFAULT_PAGE_SIZE, positiveInteger } from '../pagination/page-number';
 import type {
   ExTableProps,
   ExTableEmits,
@@ -9,7 +11,6 @@ import type {
 } from './types';
 
 export const DEFAULT_TREE_INDENT = 20;
-const DEFAULT_PAGE_SIZE = 10;
 
 export interface IndexedTableRow {
   record: TableDataItem;
@@ -24,8 +25,6 @@ export interface DisplayTableRow extends IndexedTableRow {
 }
 
 type Emit = <K extends keyof ExTableEmits>(event: K, ...args: ExTableEmits[K]) => void;
-const positiveInteger = (value: number | undefined, fallback: number) =>
-  Number.isFinite(value) && (value ?? 0) > 0 ? Math.floor(value as number) : fallback;
 
 /** 统一树结构、过滤排序、根级分页和展开，任何处理都不修改输入记录。 */
 export function useTableRows(
@@ -58,6 +57,7 @@ export function useTableRows(
     if (!props.tree) {
       // 平面表格沿用线性索引路径，不分配树遍历状态。
       props.data.forEach((record, sourceIndex) => {
+        if (!isObject(record)) return;
         const row = createRow(record, sourceIndex, 0);
         if (row) roots.push(row);
       });
@@ -78,7 +78,7 @@ export function useTableRows(
         active.delete(entry.record);
         continue;
       }
-      if (!entry.record || typeof entry.record !== 'object' || active.has(entry.record)) continue;
+      if (!isObject(entry.record) || active.has(entry.record)) continue;
       const node = createRow(entry.record, sourceIndex++, entry.depth);
       if (!node) continue;
       entry.target.push(node);
@@ -90,8 +90,7 @@ export function useTableRows(
       stack.push({ ...entry, exit: true });
       for (let index = children.length - 1; index >= 0; index--) {
         const record = children[index];
-        if (record && typeof record === 'object')
-          stack.push({ record, target: node.children, depth: entry.depth + 1 });
+        if (isObject(record)) stack.push({ record, target: node.children, depth: entry.depth + 1 });
       }
     }
     return { roots, all };
@@ -138,7 +137,7 @@ export function useTableRows(
     keys => {
       if (keys !== undefined) internalDetails.value = [...keys];
     },
-    { deep: true }
+    { deep: true, immediate: true }
   );
   const expandedKeys = computed(() => new Set(props.expandedRowKeys ?? internalExpanded.value));
   const detailKeys = computed(() => new Set(props.detailExpandedRowKeys ?? internalDetails.value));

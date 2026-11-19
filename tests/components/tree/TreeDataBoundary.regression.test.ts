@@ -80,7 +80,8 @@ describe('静态树结构与拖拽来源边界', () => {
       getData: (type: string) => (type === 'text/plain' ? (payload.get(type) ?? '') : ''),
     };
     const target = b.get('[data-node-key="target"]');
-    vi.spyOn(target.element, 'getBoundingClientRect').mockReturnValue({
+    const content = target.get('.ex-tree-node__content');
+    vi.spyOn(content.element, 'getBoundingClientRect').mockReturnValue({
       top: 0,
       height: 40,
     } as DOMRect);

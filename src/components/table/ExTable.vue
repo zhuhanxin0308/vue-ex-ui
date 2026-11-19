@@ -26,6 +26,7 @@
             <th
               v-if="selectable && rowIndex === 0"
               class="ex-table__selection-column"
+              :class="{ 'ex-table__header-action': selectionType === 'checkbox' }"
               :style="auxiliary.style('selection', true)"
               :rowspan="headerDepth"
               scope="col"
@@ -38,7 +39,14 @@
                   :disabled="loading || selectableKeys.length === 0"
                   :aria-label="t('selectAll')"
                   @update:model-value="toggleAllSelection"
-                />
+                >
+                  <span
+                    v-if="layout === 'card'"
+                    class="ex-table__card-selection-label"
+                  >
+                    {{ t('selectAll') }}
+                  </span>
+                </ExCheckbox>
               </div>
             </th>
             <th

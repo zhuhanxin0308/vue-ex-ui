@@ -349,6 +349,16 @@ describe('ExChart', () => {
     await navigation.trigger('focus');
     await navigation.trigger('keydown', { key: 'Escape' });
     expect(wrapper.emitted('update:modelValue')).toBeUndefined();
+    for (const key of ['Enter', ' ']) {
+      await navigation.trigger('keydown', { key });
+      expect(navigation.get('[role="option"]').attributes('aria-selected')).toBe('true');
+      expect(main.dispatchAction).toHaveBeenCalledWith(
+        expect.objectContaining({ type: 'showTip' })
+      );
+      await navigation.trigger('keydown', { key: 'Escape' });
+      expect(navigation.get('[role="option"]').attributes('aria-selected')).toBe('false');
+      expect(wrapper.emitted('update:modelValue')).toBeUndefined();
+    }
     await navigation.trigger('keydown', { key: 'Escape' });
     expect(wrapper.emitted('update:modelValue')).toEqual([[false]]);
   });

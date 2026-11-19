@@ -87,6 +87,7 @@ const handleKeydown = (event: KeyboardEvent) => {
   }
   if ((event.key === 'Enter' || event.key === ' ') && current.value) {
     event.preventDefault();
+    highlighted.value = true;
     emit('activate', current.value);
     return;
   }

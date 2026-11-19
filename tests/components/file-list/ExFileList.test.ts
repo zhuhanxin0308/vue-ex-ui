@@ -70,6 +70,87 @@ describe('ExFileList', () => {
   });
 
   describe('视图状态', () => {
+    it('受控条件被拒绝时保留分页，同时确认多个条件也只复位一次', async () => {
+      const wrapper = mount(ExFileList, {
+        props: {
+          files,
+          searchValue: '',
+          sortOrder: 'asc',
+          viewMode: 'list',
+          showPagination: true,
+          pageSize: 1,
+          defaultCurrentPage: 2,
+        },
+      });
+      await wrapper.get('.ex-file-list__search input').setValue('photo');
+      await wrapper.get('[aria-label="Sort descending"]').trigger('click');
+      await wrapper.get('[aria-label="Grid"]').trigger('click');
+      expect(wrapper.emitted('update:currentPage')).toBeUndefined();
+      expect(wrapper.findComponent(ExPagination).props('current')).toBe(2);
+      await wrapper.setProps({ searchValue: 'o', sortOrder: 'desc', viewMode: 'grid' });
+      expect(wrapper.emitted('update:currentPage')).toEqual([[1]]);
+      wrapper.unmount();
+    });
+
+    it('较早排序请求迟到时保留用户随后指定的页码', async () => {
+      const wrapper = mount(ExFileList, {
+        props: {
+          files,
+          sortOrder: 'asc',
+          showPagination: true,
+          pageSize: 1,
+          defaultCurrentPage: 2,
+        },
+      });
+      await wrapper.get('[aria-label="Sort descending"]').trigger('click');
+      wrapper.getComponent(ExPagination).vm.goToPage(3);
+      await nextTick();
+      await wrapper.setProps({ sortOrder: 'desc' });
+      expect(wrapper.getComponent(ExPagination).props('current')).toBe(3);
+      expect(wrapper.emitted('update:currentPage')).toEqual([[3]]);
+      wrapper.unmount();
+    });
+
+    it('树形全选与实际展开行一致，取消当前页选择保留折叠文件', async () => {
+      const wrapper = mount(ExFileList, {
+        props: {
+          files: [{ id: 'root', name: 'AAA', isDirectory: true, children: nestedFiles }, ...files],
+          viewMode: 'tree',
+          selectable: true,
+          multiple: true,
+          pageSize: 1,
+          showPagination: true,
+          defaultSelectedIds: ['child'],
+        },
+      });
+      const root = wrapper.get('[data-node-key="root"]');
+      await root.get('.ex-tree-node__expand-icon').trigger('click');
+      await wrapper.get('[aria-label="Select visible files"]').trigger('click');
+      const selected = ['child', 'root', 'folder'];
+      expect(wrapper.emitted('update:selectedIds')?.at(-1)?.[0]).toEqual(selected);
+      await wrapper.get('[aria-label="Unselect visible files"]').trigger('click');
+      expect(wrapper.emitted('update:selectedIds')?.at(-1)?.[0]).toEqual(['child']);
+      await wrapper.get('.ex-file-list__search input').setValue('target');
+      expect(wrapper.findAll('[role="treeitem"]')).toHaveLength(3);
+      await wrapper.get('[aria-label="Select visible files"]').trigger('click');
+      expect(wrapper.emitted('update:selectedIds')?.at(-1)?.[0]).toEqual(selected);
+      wrapper.unmount();
+    });
+
+    it('双击树行主体只发送一次原文件，复选框、展开和内嵌操作保持独立', async () => {
+      const wrapper = mount(ExFileList, {
+        props: { files: nestedFiles, viewMode: 'tree', selectable: true, multiple: true },
+      });
+      const row = wrapper.get('.ex-tree-node__content');
+      for (const selector of ['.ex-tree-node__expand-icon', 'input', 'button']) {
+        await row.get(selector).trigger('dblclick');
+      }
+      expect(wrapper.emitted('dblclick')).toBeUndefined();
+      await row.trigger('dblclick');
+      expect(wrapper.emitted('dblclick')).toEqual([[nestedFiles[0]]]);
+      wrapper.unmount();
+    });
+
     it.each([
       ['list', '.ex-file-list__list'],
       ['grid', '.ex-file-list__grid'],

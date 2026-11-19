@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, nextTick, onMounted, ref, useSlots, watch, type CSSProperties } from 'vue';
 import { useOverlay } from '../../composables/useOverlay';
+import { useRenderComputed } from '../../composables/useRenderComputed';
 import { useLocale } from '../../locale';
 import { hasRenderableContent } from '../../utils/vnode';
 import {
@@ -12,6 +13,7 @@ import {
 } from '../config-provider/composables';
 import ExIcon from '../icon/ExIcon.vue';
 import {
+  hasExplicitImageDimension,
   normalizeImageAspectRatio,
   normalizeImageDimension,
   normalizeImageRadius,
@@ -53,9 +55,9 @@ const previewSource = computed(() => props.previewSrc || props.src);
 const canPreview = computed(
   () => props.preview && status.value === 'loaded' && Boolean(previewSource.value)
 );
-const hasPlaceholderSlot = computed(() => hasRenderableContent(slots.placeholder?.({})));
-const hasErrorSlot = computed(() => hasRenderableContent(slots.error?.({})));
-const hasDefaultSlot = computed(() => hasRenderableContent(slots.default?.({})));
+const hasPlaceholderSlot = useRenderComputed(() => hasRenderableContent(slots.placeholder?.({})));
+const hasErrorSlot = useRenderComputed(() => hasRenderableContent(slots.error?.({})));
+const hasDefaultSlot = useRenderComputed(() => hasRenderableContent(slots.default?.({})));
 
 const normalizedWidth = computed(() => normalizeImageDimension(props.width));
 const normalizedHeight = computed(() => normalizeImageDimension(props.height));
@@ -68,6 +70,9 @@ const imageClasses = computed(() => [
   `ex-image--${status.value}`,
   {
     'ex-image--preview': props.preview,
+    'ex-image--explicit-width': hasExplicitImageDimension(normalizedWidth.value),
+    'ex-image--explicit-height': hasExplicitImageDimension(normalizedHeight.value),
+    'ex-image--aspect-ratio': Boolean(normalizedAspectRatio.value),
     'ex-image--preview-ready': canPreview.value,
     'ex-image--circle': normalizedRadius.value === '50%',
   },

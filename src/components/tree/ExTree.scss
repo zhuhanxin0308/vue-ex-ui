@@ -23,7 +23,7 @@
     .ex-tree-node--expanded::before {
       content: '';
       position: absolute;
-      left: calc(var(--ex-tree-indent, 0px) + 11px);
+      inset-inline-start: calc(var(--ex-tree-indent, 0px) + 11px);
       top: 24px;
       bottom: 0;
       width: 1px;

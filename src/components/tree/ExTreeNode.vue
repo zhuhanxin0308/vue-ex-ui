@@ -2,7 +2,7 @@
   <div
     ref="nodeRootRef"
     :class="nodeClasses"
-    :style="{ paddingLeft: `${level * 24}px`, '--ex-tree-indent': `${level * 24}px` }"
+    :style="{ '--ex-tree-indent': `${level * TREE_INDENT}px` }"
     role="treeitem"
     :data-node-key="node.key"
     :tabindex="isDisabled ? -1 : activeKey === node.key ? 0 : -1"
@@ -25,8 +25,10 @@
     @dragend.stop="handleDragEnd"
   >
     <div
+      ref="contentRef"
       class="ex-tree-node__content"
       @click="handleClick"
+      @dblclick="!isDisabled && stateLookup?.onNodeDoubleClick(node, $event)"
       @contextmenu="handleContextmenu"
     >
       <!-- 展开/收起图标 -->
@@ -34,6 +36,7 @@
         v-if="hasChildren"
         class="ex-tree-node__expand-icon"
         @click.stop="handleToggle"
+        @dblclick.stop
       >
         <ExIcon
           v-if="loadState.status === 'loading'"
@@ -65,11 +68,13 @@
         v-if="checkable && node.checkable !== false"
         class="ex-tree-node__checkbox"
         @click.stop
+        @dblclick.stop
       >
         <ExCheckbox
           :model-value="isChecked"
           :indeterminate="isHalfChecked"
           :disabled="checkDisabled"
+          :tabindex="-1"
           :aria-label="node.label"
           @change="handleCheckChange"
         />
@@ -127,6 +132,7 @@
         :disabled="isDisabled"
         :aria-label="`${node.label}: ${t('retryLoad')}`"
         @click.stop="handleRetry"
+        @dblclick.stop
       >
         {{ t('retryLoad') }}
       </button>
@@ -139,7 +145,7 @@
       role="group"
     >
       <ExTreeNode
-        v-for="child in node.children"
+        v-for="child in visibleChildren"
         :key="child.key"
         :node="child"
         :level="level + 1"
@@ -250,6 +256,11 @@ const animation = useAnimation();
 const isDragOver = ref(false);
 const dropPosition = ref<'before' | 'after' | 'inner' | null>(null);
 const nodeRootRef = ref<HTMLElement>();
+const contentRef = ref<HTMLElement>();
+const TREE_INDENT = 24;
+const visibleChildren = computed(
+  () => stateLookup?.visibleChildren(props.node) ?? props.node.children
+);
 
 const hasChildren = computed(() => {
   return stateLookup?.isExpandable(props.node) ?? Boolean(props.node.children?.length);
@@ -341,6 +352,7 @@ const handleContextmenu = (event: MouseEvent) => {
 
 const handleCheckChange = (val: string | number | boolean, event: Event) => {
   if (checkDisabled.value) return;
+  nodeRootRef.value?.focus();
   emit('check', props.node, Boolean(val));
 
   // ExCheckbox 使用原生 input；受控父级未接受请求时需恢复真实 prop 状态。
@@ -428,8 +440,8 @@ const handleDragOver = (event: DragEvent) => {
   event.preventDefault();
   event.dataTransfer.dropEffect = 'move';
 
-  // 计算放置位置
-  const rect = (event.currentTarget as HTMLElement).getBoundingClientRect();
+  // 只测当前内容行，展开后代不应改变父节点的三个落点区域。
+  const rect = contentRef.value!.getBoundingClientRect();
   const offsetY = event.clientY - rect.top;
   const height = rect.height;
 
@@ -479,7 +491,9 @@ const handleDragEnd = (event: DragEvent) => {
   }
 
   &__content {
+    position: relative;
     display: flex;
+    margin-inline-start: var(--ex-tree-indent);
     align-items: center;
     gap: var(--ex-spacing-2);
     padding: var(--ex-spacing-1) var(--ex-spacing-2);
@@ -514,7 +528,7 @@ const handleDragEnd = (event: DragEvent) => {
   }
 
   &--drag-over {
-    &.ex-tree-node--drop-before::before {
+    &.ex-tree-node--drop-before > .ex-tree-node__content::before {
       content: '';
       position: absolute;
       top: 0;
@@ -524,7 +538,7 @@ const handleDragEnd = (event: DragEvent) => {
       background: var(--ex-color-primary);
     }
 
-    &.ex-tree-node--drop-after::after {
+    &.ex-tree-node--drop-after > .ex-tree-node__content::after {
       content: '';
       position: absolute;
       bottom: 0;

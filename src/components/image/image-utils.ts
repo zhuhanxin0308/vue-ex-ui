@@ -30,6 +30,13 @@ export function normalizeImageDimension(value: ImageLength | undefined): string 
   return normalizeLength(value, true);
 }
 
+/** 固有尺寸关键字依赖内容测量，不能在对应轴上启用尺寸隔离。 */
+export function hasExplicitImageDimension(value: string | undefined): boolean {
+  if (value === undefined) return false;
+  const normalized = value.toLowerCase();
+  return !DIMENSION_KEYWORDS.has(normalized) && !normalized.startsWith('fit-content(');
+}
+
 /** 规范圆角，圆角不接受 auto 等尺寸关键字。 */
 export function normalizeImageRadius(value: ImageLength | undefined): string | undefined {
   return normalizeLength(value, false);

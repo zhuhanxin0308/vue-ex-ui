@@ -182,12 +182,15 @@ export const filterAndSortFileEntries = (
 };
 
 /** 将内部条目树展平为调用方原始文件对象。 */
-export const flattenFileEntries = (entries: readonly FileEntry[]): FileItem[] => {
+export const flattenFileEntries = (
+  entries: readonly FileEntry[],
+  expanded?: ReadonlySet<string>
+): FileItem[] => {
   const result: FileItem[] = [];
   const visit = (items: readonly FileEntry[]) => {
     for (const entry of items) {
       result.push(entry.file);
-      visit(entry.children);
+      if (!expanded || expanded.has(entry.file.id)) visit(entry.children);
     }
   };
   visit(entries);

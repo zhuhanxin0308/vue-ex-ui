@@ -117,6 +117,7 @@ export interface ExTreeEmits {
   check: [checkedKeys: string[], node: TreeNode, checked: boolean];
   /** 节点点击时触发 */
   'node-click': [node: TreeNode, event: MouseEvent];
+  'node-dblclick': [node: TreeNode, event: MouseEvent];
   /** 节点右键点击时触发 */
   'node-contextmenu': [node: TreeNode, event: MouseEvent];
   /** 节点拖拽开始时触发 */
