@@ -71,6 +71,33 @@ describe('ExVerificationCode regressions', () => {
     expect(wrapper.emitted('update:modelValue')).toBeUndefined();
   });
 
+  it.each(['numeric', 'alphanumeric'] as const)(
+    '仅切换 %s 输入约束而不改变验证码时保留待提交任务与光标',
+    async inputMode => {
+      vi.useFakeTimers();
+      const submitDelay = 500;
+      const elapsed = 200;
+      const wrapper = mountCode({
+        length: 4,
+        inputMode,
+        autoSubmit: true,
+        autoSubmitDelay: submitDelay,
+      });
+      const input = wrapper.get<HTMLInputElement>('input');
+      await input.setValue('1234');
+      await input.trigger('keydown', { key: 'Home' });
+      vi.advanceTimersByTime(elapsed);
+      await wrapper.setProps({ inputMode: inputMode === 'numeric' ? 'alphanumeric' : 'numeric' });
+
+      expect(input.element.value).toBe('1234');
+      expect(input.element.selectionStart).toBe(0);
+      expect(wrapper.emitted('complete')).toEqual([['1234']]);
+      vi.advanceTimersByTime(submitDelay - elapsed);
+      await nextTick();
+      expect(wrapper.emitted('submit')).toEqual([['1234']]);
+    }
+  );
+
   it('自动提交等待期间禁用组件会取消提交', async () => {
     vi.useFakeTimers();
     const wrapper = mountCode({ length: 4, autoSubmit: true, autoSubmitDelay: 100 });

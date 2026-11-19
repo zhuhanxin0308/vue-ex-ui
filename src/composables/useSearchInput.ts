@@ -1,7 +1,5 @@
 import { computed, ref, type Ref } from 'vue';
-
-const isCompositionInput = ({ inputType, isComposing }: InputEvent) =>
-  isComposing || inputType === 'insertCompositionText' || inputType === 'insertFromComposition';
+import { isCompositionInputEvent } from '../utils/keyboard';
 
 export function useSearchInput(
   input: Ref<HTMLInputElement | undefined>,
@@ -52,7 +50,7 @@ export function useSearchInput(
 
   const handleBeforeInput = (event: Event) => {
     const edit = event as InputEvent;
-    if (edit.inputType && !isCompositionInput(edit)) startEdit();
+    if (edit.inputType && !isCompositionInputEvent(edit)) startEdit();
   };
 
   const handleInput = (event: Event) => {
@@ -63,9 +61,11 @@ export function useSearchInput(
     ignoredFinalInput = null;
     if (
       discardedComposition === 'waiting' ||
-      (discardedComposition === 'resumed' && isCompositionInput(edit)) ||
+      (discardedComposition === 'resumed' && isCompositionInputEvent(edit)) ||
       (cancelledValue !== null &&
-        (value === cancelledValue || value === confirmedValue.value || isCompositionInput(edit)))
+        (value === cancelledValue ||
+          value === confirmedValue.value ||
+          isCompositionInputEvent(edit)))
     ) {
       restoreDisplay();
       return;
@@ -77,7 +77,8 @@ export function useSearchInput(
     commitSearch(value);
   };
 
-  const isComposing = () => draft.value !== null || discardedComposition === 'waiting';
+  // 被撤销会话只拦截其迟到输入，不应阻止新的导航键；真正的 IME 按键由原生标志保护。
+  const isComposing = () => draft.value !== null;
 
   return {
     displayValue,

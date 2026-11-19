@@ -191,7 +191,7 @@ watch(
 watch([normalizedLength, () => props.inputMode], ([length, mode], [, previousMode]) => {
   const previousValue = currentValue.value;
   const truncated = filterValidChars(previousValue, mode).slice(0, length) !== previousValue;
-  projectValue(props.modelValue ?? previousValue, true);
+  projectValue(props.modelValue ?? previousValue, cells.value.length !== length);
   if (!truncated || currentValue.value === previousValue) return;
   if (mode !== previousMode) {
     updateValue();

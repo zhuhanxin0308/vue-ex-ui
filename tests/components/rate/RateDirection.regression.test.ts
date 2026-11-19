@@ -9,7 +9,7 @@ const wrappers: Array<ReturnType<typeof mount>> = [];
 const style = document.createElement('style');
 
 beforeAll(() => {
-  // 使用真实 Sass 检查裁剪方向，几何中心另由浏览器用例验收。
+  // 使用真实 Sass 检查裁剪约束，方向与图形尺寸另由浏览器用例验收。
   style.textContent = compile('src/components/rate/ExRate.scss').css;
   document.head.append(style);
 });
@@ -30,6 +30,15 @@ function createRate(direction: 'ltr' | 'rtl', props = {}) {
     attachTo: host,
   });
   wrappers.push(wrapper);
+  const getStyle = window.getComputedStyle.bind(window);
+  // jsdom 不计算祖先方向的继承，补齐浏览器边界；显式 CSS 方向仍以真实结果为准。
+  vi.spyOn(window, 'getComputedStyle').mockImplementation(element => {
+    const computedStyle = getStyle(element);
+    if (element === wrapper.element && !computedStyle.direction) {
+      Object.defineProperty(computedStyle, 'direction', { value: host.dir, configurable: true });
+    }
+    return computedStyle;
+  });
   const star = wrapper.get('.ex-rate__star');
   vi.spyOn(star.element, 'getBoundingClientRect').mockReturnValue(
     new DOMRect(STAR_LEFT, 0, STAR_WIDTH, STAR_WIDTH)
@@ -38,18 +47,42 @@ function createRate(direction: 'ltr' | 'rtl', props = {}) {
 }
 
 describe('评分继承宿主的文字方向', () => {
-  it.each(['ltr', 'rtl'] as const)('%s 只读半星从起始侧裁剪，整数不裁剪', async direction => {
-    const { wrapper, star, host } = createRate(direction, { modelValue: 0.5, readonly: true });
+  it('不支持方向伪类的浏览器仍能通过键盘评分', async () => {
+    const { wrapper } = createRate('ltr');
+    const errors = vi.fn();
+    wrapper.vm.$.appContext.config.errorHandler = errors;
+    const matches = wrapper.element.matches.bind(wrapper.element);
+    vi.spyOn(wrapper.element, 'matches').mockImplementation(selector => {
+      if (selector.includes(':dir(')) throw new DOMException('不支持的选择器', 'SyntaxError');
+      return matches(selector);
+    });
+    await wrapper.trigger('keydown', { key: 'ArrowRight' });
+    expect(errors).not.toHaveBeenCalled();
+    expect(wrapper.emitted('update:modelValue')).toEqual([[0.5]]);
+  });
+
+  it('CSS 覆盖 HTML 方向时，指针和键盘遵循实际呈现方向', async () => {
+    const { wrapper, star } = createRate('ltr');
+    (wrapper.element as HTMLElement).style.direction = 'rtl';
+    await star.trigger('click', { clientX: STAR_LEFT + STAR_WIDTH * 0.75 });
+    expect(wrapper.attributes('aria-valuenow')).toBe('0.5');
+    await wrapper.trigger('keydown', { key: 'ArrowLeft' });
+    expect(wrapper.attributes('aria-valuenow')).toBe('1');
+  });
+
+  it.each(['ltr', 'rtl'] as const)('%s 只读半星保持图形比例，整数不裁剪', async direction => {
+    const { wrapper, star } = createRate(direction, { modelValue: 0.5, readonly: true });
     const icon = star.get('.ex-rate__icon--active').element;
-    expect(getComputedStyle(icon).clipPath).toBe(
-      direction === 'rtl' ? 'inset(0 0 0 50%)' : 'inset(0 50% 0 0)'
-    );
-    host.dir = direction === 'rtl' ? 'ltr' : 'rtl';
-    expect(getComputedStyle(icon).clipPath).toBe(
-      direction === 'rtl' ? 'inset(0 50% 0 0)' : 'inset(0 0 0 50%)'
-    );
+    const content = star.get('.ex-rate__active-content').element;
+    expect(getComputedStyle(icon).inlineSize).toBe('50%');
+    expect(getComputedStyle(icon).overflow).toBe('hidden');
+    expect(getComputedStyle(icon).insetInlineStart).toBe('0');
+    expect(getComputedStyle(content).inlineSize).toBe('200%');
+    expect(style.textContent).not.toContain(':dir(');
     await wrapper.setProps({ modelValue: 1 });
-    expect(getComputedStyle(icon).clipPath).toBe('');
+    expect(getComputedStyle(icon).inlineSize).toBe('100%');
+    expect(getComputedStyle(icon).overflow).not.toBe('hidden');
+    expect(getComputedStyle(content).inlineSize).toBe('100%');
   });
 
   it.each(['ltr', 'rtl'] as const)('%s 半星命中和悬停使用起始侧', async direction => {

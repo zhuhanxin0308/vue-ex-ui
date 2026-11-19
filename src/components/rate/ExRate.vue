@@ -50,22 +50,24 @@
 
         <!-- 选中的图标 -->
         <span class="ex-rate__icon ex-rate__icon--active">
-          <slot
-            name="icon-active"
-            :index="item"
-            :color="effectiveDisabled ? disabledVoidColor : color"
-          >
-            <ex-icon
-              icon="star-fill"
-              :size="iconSize"
+          <span class="ex-rate__active-content">
+            <slot
+              name="icon-active"
+              :index="item"
               :color="effectiveDisabled ? disabledVoidColor : color"
             >
-              <i
-                v-if="iconClasses?.[item - 1]?.trim()"
-                :class="iconClasses?.[item - 1]?.trim()"
-              ></i>
-            </ex-icon>
-          </slot>
+              <ex-icon
+                icon="star-fill"
+                :size="iconSize"
+                :color="effectiveDisabled ? disabledVoidColor : color"
+              >
+                <i
+                  v-if="iconClasses?.[item - 1]?.trim()"
+                  :class="iconClasses?.[item - 1]?.trim()"
+                ></i>
+              </ex-icon>
+            </slot>
+          </span>
         </span>
       </span>
     </div>
@@ -113,8 +115,9 @@ const emit = defineEmits<ExRateEmits>();
 const { t } = useLocale('rate');
 const rateRef = ref<HTMLElement>();
 
-// 与半星裁剪共用原生方向匹配，继承方向变化后无需额外观察器或缓存。
-const isRightToLeft = () => rateRef.value?.matches(':dir(rtl)') ?? false;
+// 使用实际样式方向，兼容项目最低浏览器版本，也响应 CSS 对 HTML 方向的覆盖。
+const isRightToLeft = () =>
+  Boolean(rateRef.value && getComputedStyle(rateRef.value).direction === 'rtl');
 
 // 所在 FormItem 的字段上下文（用于 blur 自动校验）
 const {
@@ -285,8 +288,9 @@ function handleKeydown(event: KeyboardEvent) {
   if (effectiveDisabled.value || effectiveReadonly.value || isComposingKeyboardEvent(event)) return;
 
   const step = props.allowHalf ? 0.5 : 1;
-  const incrementKey = isRightToLeft() ? 'ArrowLeft' : 'ArrowRight';
-  const decrementKey = isRightToLeft() ? 'ArrowRight' : 'ArrowLeft';
+  const rightToLeft = isRightToLeft();
+  const incrementKey = rightToLeft ? 'ArrowLeft' : 'ArrowRight';
+  const decrementKey = rightToLeft ? 'ArrowRight' : 'ArrowLeft';
   let newValue: number;
 
   if (event.key === incrementKey || event.key === 'ArrowUp') {

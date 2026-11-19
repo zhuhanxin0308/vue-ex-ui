@@ -113,6 +113,43 @@ describe('选项组件与外部状态', () => {
     }
   });
 
+  for (const lock of ['readonly', 'disabled'] as const) {
+    it.each([false, true])(`点击不能改动同值的 ${lock} 实例：初始选中 %s`, async checked => {
+      const locked = ref(true);
+      const selected = ref<Array<string | number>>(checked ? ['shared'] : []);
+      const wrapper = mount({
+        render: () =>
+          h(
+            ExCheckboxGroup,
+            {
+              modelValue: selected.value,
+              'onUpdate:modelValue': value => {
+                selected.value = value;
+              },
+            },
+            () => [
+              h(ExCheckbox, { value: 'shared' }),
+              h(ExCheckbox, { value: 'shared', [lock]: locked.value }),
+            ]
+          ),
+      });
+      try {
+        await wrapper.findAll('input')[0]!.setValue(!checked);
+        expect(wrapper.getComponent(ExCheckboxGroup).emitted('change')).toBeUndefined();
+        expect(wrapper.findAll('input').map(input => input.element.checked)).toEqual([
+          checked,
+          checked,
+        ]);
+        locked.value = false;
+        await nextTick();
+        await wrapper.findAll('input')[0]!.setValue(!checked);
+        expect(selected.value).toEqual(checked ? [] : ['shared']);
+      } finally {
+        wrapper.unmount();
+      }
+    });
+  }
+
   it('范围滑块同步原地修改的两端并从最新区间继续步进', async () => {
     const range = ref<[number, number]>([20, 80]);
     const wrapper = mount({

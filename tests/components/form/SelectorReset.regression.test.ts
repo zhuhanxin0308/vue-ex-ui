@@ -12,6 +12,39 @@ const wrappers: Array<{ unmount(): void }> = [];
 afterEach(() => wrappers.splice(0).forEach(wrapper => wrapper.unmount()));
 
 describe('选择器重置撤销搜索与节点加载', () => {
+  it.each(['select', 'cascader'] as const)(
+    '%s 重置后未收到旧组合结束时，普通方向键和 Escape 仍可使用',
+    async kind => {
+      const form = ref<FormInstance>();
+      const options = [{ value: 'a', label: '甲' }];
+      const wrapper = mount({
+        render: () =>
+          h(ExForm, { ref: form, model: { choice: null } }, () =>
+            h(ExFormItem, { prop: 'choice' }, () =>
+              kind === 'select'
+                ? h(ExSelect, { searchable: true, options })
+                : h(ExCascader, { filterable: true, options })
+            )
+          ),
+      });
+      wrappers.push(wrapper);
+      const input = wrapper.get('input');
+      await input.trigger('click');
+      await input.trigger('compositionstart');
+      form.value!.resetFields();
+      await nextTick();
+      await input.trigger('keydown', { key: 'ArrowDown', isComposing: true });
+      await input.trigger('keydown', { key: 'ArrowDown', keyCode: 229 });
+      expect(input.attributes('aria-expanded')).toBe('false');
+      await input.trigger('keydown', { key: 'ArrowDown', isComposing: false });
+      expect(input.attributes('aria-expanded')).toBe('true');
+      await input.trigger('keydown', { key: 'Escape' });
+      expect(input.attributes('aria-expanded')).toBe('false');
+      await input.trigger('keydown', { key: 'Enter' });
+      expect(input.attributes('aria-expanded')).toBe('true');
+    }
+  );
+
   it.each([true, false])('重置后只接受新组合：受控 %s', async controlled => {
     const form = ref<FormInstance>();
     const model = reactive({ choice: null });

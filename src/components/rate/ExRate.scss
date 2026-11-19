@@ -56,8 +56,9 @@
     .ex-rate__icon--active {
       position: absolute;
       top: 0;
-      left: 0;
+      inset-inline-start: 0;
       display: inline-flex;
+      inline-size: 100%;
       opacity: 0;
       @include safe-transition(all);
 
@@ -65,6 +66,12 @@
       :deep(.ex-icon) {
         @include optimized-neon-glow('blue', 'md');
       }
+    }
+
+    .ex-rate__active-content {
+      display: inline-flex;
+      flex-shrink: 0;
+      inline-size: 100%;
     }
 
     // 激活状态
@@ -86,10 +93,12 @@
 
       .ex-rate__icon--active {
         opacity: 1;
-        clip-path: inset(0 50% 0 0);
+        inline-size: 50%;
+        overflow: hidden;
 
-        &:dir(rtl) {
-          clip-path: inset(0 0 0 50%);
+        // 内容保持完整星形尺寸，逻辑起始侧的半宽容器负责裁剪，避免压缩图标。
+        .ex-rate__active-content {
+          inline-size: 200%;
         }
       }
     }

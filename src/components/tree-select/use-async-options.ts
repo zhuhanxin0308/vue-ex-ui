@@ -302,28 +302,30 @@ export function useAsyncOptions<T extends AsyncOption<T>>(options: AsyncOptions<
 
   const synchronize = () => {
     if (!options.loader()) return;
-    const wanted = new Set<string>();
+    const wanted = new Map<string, readonly OptionValue[]>();
     if (options.active() && !options.blocked()) {
       for (const path of requestedPaths.value) {
-        const entry = indexed.value.entries.get(keyFor(path));
-        if (entry && !entry.disabled) wanted.add(keyFor(path));
+        const key = keyFor(path);
+        const entry = indexed.value.entries.get(key);
+        if (entry && !entry.disabled) wanted.set(key, path);
       }
     }
     for (const [key, request] of pending) {
       if (!options.active() || options.blocked() || (request.expandedOnly && !wanted.has(key))) {
         const entry = indexed.value.entries.get(key);
-        if (entry) cancel(entry.path);
+        if (entry) cancelKey(key);
       }
     }
-    for (const key of wanted) {
+    for (const [key, path] of wanted) {
       const entry = indexed.value.entries.get(key)!;
       if (!previousWanted.has(key)) {
         cancelled.delete(key);
         if (states.value.get(key)?.status === 'error') setState(key, { status: 'idle' });
       }
-      if (expandable(entry.node, entry.path)) void load(entry.path, false, true);
+      // 保留调用方的身份路径，静态展开分支不必生成完整父链；真正加载时再构造回调路径。
+      if (expandable(entry.node, path)) void load(path, false, true);
     }
-    previousWanted = wanted;
+    previousWanted = new Set(wanted.keys());
   };
   const invalidate = () => {
     cancelAll();

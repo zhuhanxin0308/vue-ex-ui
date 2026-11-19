@@ -126,12 +126,13 @@ describe('字段实际 DOM 与公开样式契约', () => {
     const scope = (wrapper.element as HTMLElement)
       .getAttributeNames()
       .find(attr => attr.startsWith('data-v-'))!;
-    const selectors = selectorsForToken(
-      'src/components/rate/ExRate.scss',
-      scope,
-      'inset(0 50% 0 0)'
-    );
-    expect(selectors.some(selector => half.element.matches(selector))).toBe(true);
+    for (const [node, token] of [
+      [half.element, '50%'],
+      [half.get('.ex-rate__active-content').element, '200%'],
+    ] as const) {
+      const selectors = selectorsForToken('src/components/rate/ExRate.scss', scope, token);
+      expect(selectors.some(selector => node.matches(selector))).toBe(true);
+    }
   });
 
   it.each(['success', 'warning', 'error'] as const)(

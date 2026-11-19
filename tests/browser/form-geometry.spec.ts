@@ -55,6 +55,18 @@ async function assertCenter(locator: Locator, axis: 'x' | 'y', expected: number)
   expect(Math.abs(center - expected)).toBeLessThanOrEqual(PIXEL_TOLERANCE);
 }
 
+async function assertHalfStar(star: Locator, direction: string) {
+  const bounds = (await star.boundingBox())!;
+  const clip = (await star.locator('.ex-rate__icon--active').boundingBox())!;
+  const content = (await star.locator('.ex-rate__active-content').boundingBox())!;
+  const leadingEdge = direction === 'rtl' ? bounds.x + bounds.width / 2 : bounds.x;
+  expect(Math.abs(clip.width - bounds.width / 2)).toBeLessThanOrEqual(PIXEL_TOLERANCE);
+  expect(Math.abs(clip.x - leadingEdge)).toBeLessThanOrEqual(PIXEL_TOLERANCE);
+  expect(Math.abs(content.width - bounds.width)).toBeLessThanOrEqual(PIXEL_TOLERANCE);
+  expect(Math.abs(content.x - bounds.x)).toBeLessThanOrEqual(PIXEL_TOLERANCE);
+  await expect(star.locator('.ex-rate__icon--active')).toHaveCSS('overflow', 'hidden');
+}
+
 for (const direction of ['horizontal', 'vertical']) {
   for (const reverse of [false, true]) {
     for (const range of [false, true]) {
@@ -126,17 +138,30 @@ for (const direction of ['ltr', 'rtl']) {
       await page.mouse.click(bounds.x + offset, bounds.y + bounds.height / 2);
       await page.mouse.move(0, 0);
       await expect(rate).toHaveAttribute('aria-valuenow', '0.5');
-      const clip = current === 'rtl' ? 'inset(0px 0px 0px 50%)' : 'inset(0px 50% 0px 0px)';
-      await expect(star.locator('.ex-rate__icon--active')).toHaveCSS('clip-path', clip);
-      await expect(page.locator('#readonly-rate .is-half .ex-rate__icon--active')).toHaveCSS(
-        'clip-path',
-        clip
-      );
+      await assertHalfStar(star, current);
+      await assertHalfStar(page.locator('#readonly-rate .is-half'), current);
       await rate.press(current === 'rtl' ? 'ArrowLeft' : 'ArrowRight');
       await expect(rate).toHaveAttribute('aria-valuenow', '1');
     }
   });
 }
+
+test('评分按 CSS 实际方向裁剪，不依赖方向伪类或 HTML 属性', async ({ page }) => {
+  await open(page, 'scene=rate&dir=ltr');
+  await page.locator('#rate-host').evaluate(host => {
+    host.style.direction = 'rtl';
+  });
+  const rate = page.locator('.ex-rate').first();
+  const star = rate.locator('.ex-rate__star').first();
+  const bounds = (await star.boundingBox())!;
+  await page.mouse.click(bounds.x + bounds.width * 0.75, bounds.y + bounds.height / 2);
+  await page.mouse.move(0, 0);
+  await expect(rate).toHaveAttribute('aria-valuenow', '0.5');
+  await assertHalfStar(star, 'rtl');
+  await assertHalfStar(page.locator('#readonly-rate .is-half'), 'rtl');
+  await rate.press('ArrowLeft');
+  await expect(rate).toHaveAttribute('aria-valuenow', '1');
+});
 
 for (const largeText of [false, true]) {
   test(`375px 视口的 64 色板可滚动确认，放大文字=${largeText}`, async ({ page }) => {

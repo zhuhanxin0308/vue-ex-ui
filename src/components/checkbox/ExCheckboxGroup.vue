@@ -279,7 +279,7 @@ const commitValue = (value: Array<string | number>) => {
 
 // 返回是否接受本次切换，子组件据此恢复原生 checked 状态。
 const updateValue = (value: string | number, checked: boolean): boolean => {
-  if (currentDisabled.value || currentReadonly.value) return false;
+  if (currentDisabled.value || currentReadonly.value || getLockedValues().has(value)) return false;
 
   const newValue = [...confirmedValues.value];
   const index = newValue.indexOf(value);
@@ -370,12 +370,16 @@ const getAvailableOptions = () => {
     .filter((option): option is NonNullable<typeof option> => option !== null);
 };
 
+// 同值实例共享模型身份；单项与批量操作都必须尊重其中任何一个实例的不可修改状态。
+const getLockedValues = (options = getAvailableOptions()) =>
+  new Set(options.filter(option => option.disabled).map(option => option.value));
+
 const updateAll = (action: 'check' | 'uncheck' | 'toggle') => {
   if (currentDisabled.value || currentReadonly.value) return;
 
   const options = getAvailableOptions();
   if (!options.length) return;
-  const locked = new Set(options.filter(option => option.disabled).map(option => option.value));
+  const locked = getLockedValues(options);
   const current = new Set(confirmedValues.value);
   const additions = options.filter(
     option => !locked.has(option.value) && !current.has(option.value)
