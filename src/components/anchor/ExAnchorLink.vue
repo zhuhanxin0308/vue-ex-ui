@@ -1,10 +1,10 @@
 <template>
   <div
-    ref="linkRef"
     class="ex-anchor-link"
     :class="{ 'is-active': isActive }"
   >
     <a
+      ref="linkRef"
       :href="safeHref"
       :role="selectorHref ? 'link' : undefined"
       :tabindex="selectorHref ? 0 : undefined"
@@ -33,7 +33,7 @@ defineOptions({
 const props = defineProps<ExAnchorLinkProps>();
 const emit = defineEmits<ExAnchorLinkEmits>();
 
-const linkRef = ref<HTMLDivElement>();
+const linkRef = ref<HTMLAnchorElement>();
 
 const anchor = inject(ANCHOR_INJECTION_KEY, null);
 

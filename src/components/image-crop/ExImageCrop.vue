@@ -292,7 +292,13 @@ const zoom = ref(1);
 const rotation = ref<CropRotation>(0);
 const isLoading = ref(false);
 const isCropping = ref(false);
-const displayError = ref('');
+const sourceError = ref('');
+const configurationError = ref('');
+const layoutError = ref('');
+const cropError = ref('');
+const displayError = computed(
+  () => configurationError.value || sourceError.value || layoutError.value || cropError.value
+);
 const configurationValid = ref(true);
 
 interface PointerInteraction {
@@ -312,6 +318,7 @@ let cropPromise: Promise<CropResult> | null = null;
 let cropOperationToken: symbol | null = null;
 let cropGeneration = 0;
 let loadGeneration = 0;
+let isMounted = false;
 
 const resolvedAriaLabel = computed(() => props.ariaLabel.trim() || t('editor'));
 const isReady = computed(() =>
@@ -372,10 +379,17 @@ const validateConfiguration = (): void => {
 
 const reportError = (
   error: unknown,
-  fallbackCode: 'LOAD_FAILED' | 'INVALID_CONFIGURATION' | 'ENCODE_FAILED'
+  fallbackCode: 'LOAD_FAILED' | 'INVALID_CONFIGURATION' | 'ENCODE_FAILED',
+  origin: 'source' | 'configuration' | 'layout' | 'crop'
 ): ExImageCropError => {
   const normalized = toImageCropError(error, fallbackCode, '图片裁剪失败');
-  displayError.value = normalized.message;
+  const target = {
+    source: sourceError,
+    configuration: configurationError,
+    layout: layoutError,
+    crop: cropError,
+  }[origin];
+  target.value = normalized.message;
   emit('error', normalized);
   return normalized;
 };
@@ -479,11 +493,15 @@ const loadSource = async (): Promise<void> => {
   cancelCropOperation();
   releaseResource();
   stopInteraction();
-  displayError.value = '';
+  sourceError.value = '';
+  configurationError.value = '';
+  layoutError.value = '';
+  cropError.value = '';
   configurationValid.value = true;
   isLoading.value = true;
   zoom.value = Math.min(props.maxZoom, Math.max(props.minZoom, 1));
   rotation.value = 0;
+  let phase: 'source' | 'layout' = 'source';
 
   try {
     validateConfiguration();
@@ -494,15 +512,27 @@ const loadSource = async (): Promise<void> => {
     }
 
     resource.value = loaded;
+    phase = 'layout';
     emit('load', { ...loaded.dimension });
     await nextTick();
+    if (generation !== loadGeneration || controller.signal.aborted) return;
     rebuildLayout('initialize');
   } catch (error) {
     if (generation !== loadGeneration || controller.signal.aborted) return;
+    if (phase === 'layout') {
+      // 图片解码成功后，首次画布失败也属于可恢复的布局问题。
+      layout.value = null;
+      reportError(error, 'ENCODE_FAILED', 'layout');
+      return;
+    }
     releaseResource();
     configurationValid.value =
       !(error instanceof ExImageCropError) || error.code !== 'INVALID_CONFIGURATION';
-    reportError(error, configurationValid.value ? 'LOAD_FAILED' : 'INVALID_CONFIGURATION');
+    reportError(
+      error,
+      configurationValid.value ? 'LOAD_FAILED' : 'INVALID_CONFIGURATION',
+      configurationValid.value ? 'source' : 'configuration'
+    );
   } finally {
     if (generation === loadGeneration) isLoading.value = false;
   }
@@ -534,13 +564,14 @@ const reset = (): void => {
   // 重置撤销旧裁剪和拖动身份，迟到结果与指针移动都不能覆盖新编辑状态。
   cancelCropOperation();
   stopInteraction();
-  if (!resource.value) return;
+  if (!resource.value || !configurationValid.value) return;
   const initialZoom = Math.min(props.maxZoom, Math.max(props.minZoom, 1));
   const zoomChanged = zoom.value !== initialZoom;
   const rotationChanged = rotation.value !== 0;
   zoom.value = initialZoom;
   rotation.value = 0;
-  displayError.value = '';
+  layoutError.value = '';
+  cropError.value = '';
   rebuildLayout('initialize');
   if (zoomChanged) emit('zoom', zoom.value);
   if (rotationChanged) emit('rotate', rotation.value);
@@ -638,6 +669,7 @@ const crop = (): Promise<CropResult> => {
     return Promise.reject(new ExImageCropError('NOT_READY', '图片尚未准备完成'));
   }
 
+  cropError.value = '';
   const currentResource = resource.value;
   const currentLayout = layout.value;
   const previewArea = cloneArea(cropArea.value);
@@ -707,7 +739,7 @@ const handleCrop = (): void => {
     .catch(error => {
       if (generation !== cropGeneration) return;
       const normalized = toImageCropError(error, 'ENCODE_FAILED', '图片裁剪失败');
-      if (normalized.code !== 'ABORTED') reportError(normalized, 'ENCODE_FAILED');
+      if (normalized.code !== 'ABORTED') reportError(normalized, 'ENCODE_FAILED', 'crop');
     });
 };
 
@@ -745,15 +777,17 @@ const updateContainerSize = (size: CropSize): void => {
   const previousLayout = layout.value;
   const previousArea = cropArea.value;
   containerSize.value = { width: size.width, height: size.height };
+  if (!resource.value || !configurationValid.value) return;
   try {
     rebuildLayout(hadLayout ? 'preserve-source' : 'initialize');
-    displayError.value = '';
+    // 容器恢复只能清除布局失败，资源、配置和编码错误由各自的成功路径负责。
+    layoutError.value = '';
   } catch (error) {
     // 无效画布尺寸不能提交半成品布局；保留上次有效裁剪，等待容器恢复。
     containerSize.value = previousSize;
     layout.value = previousLayout;
     cropArea.value = previousArea;
-    reportError(error, 'ENCODE_FAILED');
+    reportError(error, 'ENCODE_FAILED', 'layout');
   }
 };
 
@@ -785,8 +819,9 @@ const setupResizeObserver = (): void => {
 
 watch(
   () => props.src,
-  () => void loadSource(),
-  { immediate: true }
+  () => {
+    if (isMounted) void loadSource();
+  }
 );
 
 const applyValidatedConfiguration = (update: () => void): void => {
@@ -794,7 +829,7 @@ const applyValidatedConfiguration = (update: () => void): void => {
   try {
     validateConfiguration();
     configurationValid.value = true;
-    displayError.value = '';
+    configurationError.value = '';
     if (shouldReload) {
       void loadSource();
       return;
@@ -802,7 +837,7 @@ const applyValidatedConfiguration = (update: () => void): void => {
     update();
   } catch (error) {
     configurationValid.value = false;
-    reportError(error, 'INVALID_CONFIGURATION');
+    reportError(error, 'INVALID_CONFIGURATION', 'configuration');
   }
 };
 
@@ -840,9 +875,14 @@ watch(
     })
 );
 
-onMounted(setupResizeObserver);
+onMounted(() => {
+  isMounted = true;
+  setupResizeObserver();
+  void loadSource();
+});
 
 onBeforeUnmount(() => {
+  isMounted = false;
   loadGeneration += 1;
   loadController?.abort();
   cancelCropOperation();

@@ -735,7 +735,7 @@ function synchronizeValue() {
 watch(
   [() => props.modelValue, () => props.range, () => props.min, () => props.max, effectiveStep],
   synchronizeValue,
-  { immediate: true, flush: 'sync' }
+  { immediate: true, flush: 'sync', deep: true }
 );
 
 onBeforeUnmount(stopDragging);

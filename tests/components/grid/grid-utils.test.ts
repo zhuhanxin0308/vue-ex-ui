@@ -48,6 +48,7 @@ describe('Grid 数值与响应式工具', () => {
     expect(styles).toMatchObject({
       '--ex-grid-xs-flex': '0 0 50%',
       '--ex-grid-xs-offset': '8.33333333%',
+      '--ex-grid-xs-push': 'auto',
       '--ex-grid-xs-order': '3',
       '--ex-grid-sm-flex': '0 0 25%',
       '--ex-grid-sm-offset': '8.33333333%',

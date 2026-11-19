@@ -8,6 +8,7 @@ export default defineConfig({
     'choice-group-layout.spec.ts',
     'code-image-download.spec.ts',
     'code-window.spec.ts',
+    'form-geometry.spec.ts',
     'upload-focus.spec.ts',
   ],
   workers: 2,

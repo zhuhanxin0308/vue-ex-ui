@@ -156,4 +156,25 @@ describe('异步树请求生命周期与不可信返回结构', () => {
     expect(host.controller.data.value[0]?.children?.[0]?.value).toBe('new');
     expect(host.controller.stateFor(['child'])).toEqual({ status: 'idle' });
   });
+
+  it('允许重用自身后代身份，拒绝另一分支的身份，事件两份子树相互隔离', async () => {
+    const host = createHost(
+      [
+        { value: 'target', label: '目标', children: [{ value: 'own', label: '旧' }] },
+        { value: 'other', label: '其他', children: [{ value: 'occupied', label: '已占用' }] },
+      ],
+      vi
+        .fn()
+        .mockResolvedValueOnce([{ value: 'own', label: '新' }])
+        .mockResolvedValueOnce([{ value: 'occupied', label: '冲突' }])
+    );
+    await expect(host.controller.reload(['target'])).resolves.toBe(true);
+    const [node, children] = host.onLoad.mock.calls[0]!;
+    node.children[0].label = '已改写';
+    expect(children[0].label).toBe('新');
+    await expect(host.controller.reload(['target'])).resolves.toBe(false);
+    expect(host.controller.data.value[0]?.children?.[0]?.label).toBe('新');
+    expect(host.onLoad).toHaveBeenCalledOnce();
+    expect(host.onError).toHaveBeenCalledOnce();
+  });
 });

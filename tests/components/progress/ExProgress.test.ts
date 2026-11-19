@@ -9,6 +9,36 @@ import ExConfigProvider from '../../../src/components/config-provider/ExConfigPr
 import type { ExProgressExposed, ProgressStatus } from '../../../src/components/progress/types';
 
 describe('ExProgress', () => {
+  it.each(['wave', 'wave-circle'] as const)('%s 的两层波形在端点均为水平面', async type => {
+    let frame: FrameRequestCallback | undefined;
+    vi.stubGlobal('requestAnimationFrame', (callback: FrameRequestCallback) => {
+      frame = callback;
+      return 1;
+    });
+    const wrapper = mount(ExProgress, {
+      props: { type, percentage: 0, waveAmplitude: 30, width: 120 },
+    });
+    for (const percentage of [0, 100, 50]) {
+      await wrapper.setProps({ percentage });
+      for (const time of [0, 32]) {
+        frame?.(time);
+        const paths = wrapper.findAll('path');
+        expect(paths).toHaveLength(2);
+        for (const path of paths) {
+          const edge = Array.from((path.attributes('d') ?? '').matchAll(/[ML] [^ ]+ ([^ ]+)/g))
+            .slice(0, -2)
+            .map(match => Number(match[1]));
+          if (percentage === 50) expect(new Set(edge).size).toBeGreaterThan(1);
+          else {
+            const height = type === 'wave' ? 100 : 120;
+            expect(new Set(edge)).toEqual(new Set([percentage === 100 ? 0 : height]));
+          }
+        }
+      }
+    }
+    wrapper.unmount();
+  });
+
   it('实例和全局动画开关共同控制唯一的波浪帧，卸载取消最后一帧', async () => {
     let frameId = 0;
     const request = vi.spyOn(window, 'requestAnimationFrame').mockImplementation(() => ++frameId);

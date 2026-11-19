@@ -251,8 +251,8 @@ const onResize = () => {
   onScroll();
 };
 
-const bind = () => {
-  scrollTarget = resolveTarget(props.target);
+const bind = (target: HTMLElement | Window) => {
+  scrollTarget = target;
   scrollTarget.addEventListener('scroll', onScroll, { passive: true });
   window.addEventListener('resize', onResize, { passive: true });
   update();
@@ -292,8 +292,10 @@ const scrollToTop = async (): Promise<void> => {
     );
     if (completed && mounted) emit('scroll-end');
   } finally {
-    scrolling.value = false;
-    if (scrollAbortController === controller) scrollAbortController = null;
+    if (scrollAbortController === controller) {
+      scrollAbortController = null;
+      scrolling.value = false;
+    }
   }
 };
 
@@ -315,17 +317,6 @@ const hide = () => {
 // ---------------------------------------------------------------------------
 // 生命周期
 // ---------------------------------------------------------------------------
-watch(
-  () => props.target,
-  () => {
-    if (!mounted) return;
-    manualVisibility = undefined;
-    scrollAbortController?.abort();
-    unbind();
-    bind();
-  }
-);
-
 watch([normalizedVisibilityHeight, normalizedVisibilityPercent], () => {
   manualVisibility = undefined;
   if (mounted) update();
@@ -334,7 +325,18 @@ watch([normalizedVisibilityHeight, normalizedVisibilityPercent], () => {
 onMounted(() => {
   mounted = true;
   viewportWidth.value = window.innerWidth;
-  bind();
+  watch(
+    () => resolveTarget(props.target),
+    target => {
+      manualVisibility = undefined;
+      scrollAbortController?.abort();
+      scrollAbortController = null;
+      scrolling.value = false;
+      unbind();
+      bind(target);
+    },
+    { immediate: true, flush: 'sync' }
+  );
 });
 onBeforeUnmount(() => {
   mounted = false;

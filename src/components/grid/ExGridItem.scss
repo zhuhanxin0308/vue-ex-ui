@@ -4,9 +4,9 @@
   display: var(--ex-grid-#{$breakpoint}-display);
   flex: var(--ex-grid-#{$breakpoint}-flex);
   max-width: var(--ex-grid-#{$breakpoint}-max-width);
-  margin-left: var(--ex-grid-#{$breakpoint}-offset);
-  left: var(--ex-grid-#{$breakpoint}-push);
-  right: var(--ex-grid-#{$breakpoint}-pull);
+  margin-inline-start: var(--ex-grid-#{$breakpoint}-offset);
+  inset-inline-start: var(--ex-grid-#{$breakpoint}-push);
+  inset-inline-end: var(--ex-grid-#{$breakpoint}-pull);
   order: var(--ex-grid-#{$breakpoint}-order);
 }
 

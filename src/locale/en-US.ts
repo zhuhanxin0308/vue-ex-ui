@@ -125,6 +125,9 @@ const enUS = {
     download: 'Download Barcode',
     invalidValue: 'Invalid barcode value',
     invalidFormat: 'Unsupported barcode format',
+    valueTooLong: 'Barcode value must not exceed {max} characters',
+    loadFailed: 'Unable to load the barcode renderer',
+    pixelLimit: 'Barcode image exceeds browser safe pixel limits',
   },
 
   // Slider
@@ -484,6 +487,7 @@ const enUS = {
 
   // Tabs
   tabs: {
+    selectTab: 'Select tab',
     add: 'Add',
     close: 'Close',
     more: 'More',

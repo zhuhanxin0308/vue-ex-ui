@@ -10,6 +10,29 @@ const wrappers: Array<{ unmount(): void }> = [];
 afterEach(() => wrappers.splice(0).forEach(wrapper => wrapper.unmount()));
 
 describe('数值边界与表单输入事件', () => {
+  it.each(['', '-'])('将有效草稿改为 %j 时撤销旧通知，后续输入仍可通知', async draft => {
+    vi.useFakeTimers();
+    try {
+      const wrapper = mount(ExNumberInput, { props: { debounceDelay: 100 } });
+      wrappers.push(wrapper);
+      const input = wrapper.get('input');
+      input.element.value = '12';
+      await input.trigger('input');
+      vi.advanceTimersByTime(20);
+      input.element.value = draft;
+      await input.trigger('input');
+      vi.advanceTimersByTime(100);
+      expect(wrapper.emitted('input')).toBeUndefined();
+      input.element.value = '34';
+      await input.trigger('input');
+      vi.advanceTimersByTime(100);
+      expect(wrapper.emitted('input')).toEqual([[34]]);
+      expect(wrapper.emitted('update:modelValue')).toBeUndefined();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it.each([
     { initial: 0.1, step: 0.2, expected: 0.3 },
     { initial: 1e-7, step: 2e-7, expected: 3e-7 },

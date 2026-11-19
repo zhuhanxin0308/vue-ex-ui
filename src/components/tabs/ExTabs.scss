@@ -9,6 +9,7 @@
   position: relative;
   display: flex;
   flex-direction: column;
+  min-width: 0;
 
   // 垂直布局
   &--left,
@@ -78,6 +79,46 @@
 .ex-tabs__nav-scroll {
   overflow: hidden;
   flex: 1;
+  min-width: 0;
+}
+
+.ex-tabs__nav-wrap--top,
+.ex-tabs__nav-wrap--bottom {
+  .ex-tabs__nav-scroll {
+    overflow-x: auto;
+    overscroll-behavior-x: contain;
+  }
+
+  .ex-tabs__nav {
+    box-sizing: border-box;
+    width: max-content;
+    min-width: 100%;
+  }
+}
+
+.ex-tabs__overflow {
+  position: relative;
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  min-height: var(--ex-button-touch-target, 44px);
+  padding-inline: var(--ex-spacing-2);
+  color: var(--ex-color-primary);
+  border-inline-start: 1px solid var(--ex-color-border-primary);
+
+  &:focus-within {
+    outline: 2px solid var(--ex-color-border-focus);
+    outline-offset: -2px;
+  }
+}
+
+.ex-tabs__overflow-select {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  opacity: 0;
+  cursor: pointer;
 }
 
 // 导航容器
@@ -114,10 +155,6 @@
   border: 0;
   border-radius: var(--ex-radius-base);
   @include transition(all);
-
-  &--closable {
-    padding-right: calc(var(--ex-button-touch-target, 44px) + var(--ex-spacing-2));
-  }
 
   &:hover:not(&--disabled):not(&--active) {
     color: var(--ex-color-text-primary);
@@ -165,10 +202,7 @@
 
 // 关闭按钮
 .ex-tabs__tab-close {
-  position: absolute;
-  top: 50%;
-  right: 0;
-  z-index: 1;
+  flex: none;
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -182,7 +216,6 @@
   border: 0;
   border-radius: 50%;
   opacity: 0.6;
-  transform: translateY(-50%);
   @include transition(all);
 
   &:hover {

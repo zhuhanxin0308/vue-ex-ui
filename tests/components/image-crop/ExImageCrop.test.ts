@@ -213,6 +213,27 @@ describe('ExImageCrop', () => {
     await expect(api.crop()).resolves.toHaveProperty('blob');
   });
 
+  it('首次布局绘制失败保留已解码资源，容器恢复后无需重新加载', async () => {
+    const resource = createResource('large-layout');
+    resourceMocks.loadBrowserImageResource.mockResolvedValueOnce(resource);
+    cropMocks.drawCropPreview.mockImplementationOnce(() => {
+      throw new ExImageCropError('INVALID_DIMENSION', '容器像素超过预算');
+    });
+    const current = await mountCrop();
+    const api = current.vm as unknown as ExImageCropExposed;
+    expect(current.get('[role="alert"]').text()).toBe('容器像素超过预算');
+    expect(resource.dispose).not.toHaveBeenCalled();
+    await expect(api.crop()).rejects.toMatchObject({ code: 'NOT_READY' });
+    resizeCallback?.(
+      [{ contentRect: { width: 400, height: 300 } } as ResizeObserverEntry],
+      {} as ResizeObserver
+    );
+    await nextTick();
+    expect(current.find('[role="alert"]').exists()).toBe(false);
+    expect(resourceMocks.loadBrowserImageResource).toHaveBeenCalledOnce();
+    await expect(api.crop()).resolves.toHaveProperty('blob');
+  });
+
   it('加载一次资源、建立布局并发出不可变尺寸快照', async () => {
     const resource = createResource('loaded');
     resourceMocks.loadBrowserImageResource.mockResolvedValueOnce(resource);
@@ -285,6 +306,42 @@ describe('ExImageCrop', () => {
     expect(current.get('[role="alert"]').text()).toContain('broken image');
     expect(current.find('.ex-image-crop__crop-box').exists()).toBe(false);
     expect(current.emitted('error')).toEqual([[error]]);
+  });
+
+  it.each(['source', 'configuration'] as const)(
+    '容器尺寸变化保留尚未解决的 %s 错误',
+    async origin => {
+      if (origin === 'source') {
+        resourceMocks.loadBrowserImageResource.mockRejectedValueOnce(
+          new ExImageCropError('LOAD_FAILED', '图片加载失败')
+        );
+      }
+      const current = await mountCrop(origin === 'configuration' ? { quality: 2 } : {});
+      const message = current.get('[role="alert"]').text();
+      resizeCallback?.(
+        [{ contentRect: { width: 800, height: 600 } } as ResizeObserverEntry],
+        {} as ResizeObserver
+      );
+      await nextTick();
+
+      expect(current.get('[role="alert"]').text()).toBe(message);
+      expect(current.find('.ex-image-crop__crop-box').exists()).toBe(false);
+      expect(current.emitted('error')).toHaveLength(1);
+      if (origin === 'source') await current.setProps({ src: '/recovered.png' });
+      else await current.setProps({ quality: 0.8 });
+      await flushPromises();
+      expect(current.find('[role="alert"]').exists()).toBe(false);
+      expect(current.find('.ex-image-crop__crop-box').exists()).toBe(true);
+    }
+  );
+
+  it('加载错误不会因修改有效的裁剪配置而消失', async () => {
+    resourceMocks.loadBrowserImageResource.mockRejectedValueOnce(
+      new ExImageCropError('LOAD_FAILED', '图片加载失败')
+    );
+    const current = await mountCrop();
+    await current.setProps({ quality: 0.8 });
+    expect(current.get('[role="alert"]').text()).toBe('图片加载失败');
   });
 
   it('非法运行时配置阻止加载，修正后自动恢复同一来源', async () => {
@@ -581,6 +638,24 @@ describe('ExImageCrop', () => {
 
     expect(current.emitted('error')).toEqual([[error]]);
     expect(current.attributes('aria-busy')).toBe('false');
+  });
+
+  it('裁剪失败不会被尺寸变化清除，新的成功裁剪会清除自己的错误', async () => {
+    cropMocks.renderCrop.mockRejectedValueOnce(new ExImageCropError('ENCODE_FAILED', '编码失败'));
+    const current = await mountCrop();
+    await current.get('[data-action="crop"]').trigger('click');
+    await flushPromises();
+    expect(current.get('[role="alert"]').text()).toBe('编码失败');
+    resizeCallback?.(
+      [{ contentRect: { width: 800, height: 600 } } as ResizeObserverEntry],
+      {} as ResizeObserver
+    );
+    await nextTick();
+    expect(current.get('[role="alert"]').text()).toBe('编码失败');
+    await current.get('[data-action="crop"]').trigger('click');
+    await flushPromises();
+    expect(current.find('[role="alert"]').exists()).toBe(false);
+    expect(current.emitted('crop')).toHaveLength(1);
   });
 
   it('未加载完成时 crop 明确拒绝而不是生成空结果', async () => {

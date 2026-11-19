@@ -380,6 +380,8 @@ const handleInput = (event: Event) => {
     } else {
       emit('input', parsedValue);
     }
+  } else {
+    debouncedInput?.cancel();
   }
   // 保持 change 才提交模型的既有行为，同时让实时校验看到用户正在编辑的值。
   formItem?.onFieldInput?.({ value: parsedValue });

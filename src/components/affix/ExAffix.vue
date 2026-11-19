@@ -197,16 +197,17 @@ const observeLayout = () => {
   if (scrollContainer instanceof HTMLElement) resizeObserver.observe(scrollContainer);
 };
 
-const addListeners = () => {
+const resolveScrollTarget = (): HTMLElement | Window => {
   try {
-    scrollContainer = props.target();
+    const target = props.target();
+    return target instanceof HTMLElement ? target : window;
   } catch {
-    scrollContainer = window;
+    return window;
   }
-  if (!(scrollContainer instanceof HTMLElement) && scrollContainer !== window) {
-    scrollContainer = window;
-  }
+};
 
+const addListeners = (container: HTMLElement | Window) => {
+  scrollContainer = container;
   const scrollTargets: Array<HTMLElement | Window> = [scrollContainer];
   if (affixRef.value) {
     scrollTargets.push(...getScrollAncestors(affixRef.value));
@@ -231,22 +232,20 @@ const removeListeners = () => {
   resizeObserver = null;
 };
 
-watch(
-  () => props.target,
-  () => {
-    removeListeners();
-    addListeners();
-    updatePosition();
-  }
-);
-
 watch([() => props.offsetTop, () => props.offsetBottom, () => props.zIndex, stickyZIndex], () => {
   updatePosition();
 });
 
 onMounted(() => {
-  addListeners();
-  updatePosition();
+  watch(
+    resolveScrollTarget,
+    container => {
+      removeListeners();
+      addListeners(container);
+      updatePosition();
+    },
+    { immediate: true, flush: 'sync' }
+  );
 });
 
 onBeforeUnmount(() => {

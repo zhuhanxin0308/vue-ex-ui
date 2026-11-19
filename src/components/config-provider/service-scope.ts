@@ -78,6 +78,7 @@ export function provideComponentServiceScope(): ComponentServiceScope {
   if (!instance) throw new Error('组件服务作用域只能在 setup 中创建');
 
   const records = new Map<ServiceKey, ServiceRecord>();
+  let disposed = false;
   const scope: ComponentServiceScope = {
     getAppContext: () => createInheritedAppContext(instance),
     getOrCreate: <T>(
@@ -87,6 +88,7 @@ export function provideComponentServiceScope(): ComponentServiceScope {
     ): T => {
       const existing = records.get(key);
       if (existing) return existing.service as T;
+      if (disposed) throw new Error('组件服务作用域已释放，不能创建新的服务');
 
       const service = create(scope.getAppContext());
       records.set(key, {
@@ -96,6 +98,8 @@ export function provideComponentServiceScope(): ComponentServiceScope {
       return service;
     },
     disposeAll: () => {
+      if (disposed) return;
+      disposed = true;
       let firstError: unknown;
       for (const record of records.values()) {
         try {

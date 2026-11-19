@@ -126,9 +126,13 @@
 
 .ex-color-picker__panel {
   position: absolute;
+  box-sizing: border-box;
   z-index: var(--ex-z-dropdown, 1000);
   width: min(256px, calc(100vw - 16px));
+  max-height: calc(100dvh - 16px);
   padding: 12px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
   color: var(--ex-color-text-primary);
   background: var(--ex-color-bg-elevated);
   border: 1px solid var(--ex-color-border-primary);
@@ -271,7 +275,7 @@
   .ex-color-picker__input {
     flex: 1;
     min-width: 0;
-    height: 30px;
+    min-height: 30px;
     padding: 0 8px;
     color: var(--ex-color-text-primary);
     font-family: var(--ex-font-mono, monospace);
@@ -327,7 +331,7 @@
   }
 
   .ex-color-picker__btn {
-    height: 28px;
+    min-height: 28px;
     padding: 0 12px;
     font: inherit;
     font-size: var(--ex-text-sm);

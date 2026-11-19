@@ -310,7 +310,7 @@ const moveTitleFocus = (direction: 'next' | 'previous' | 'first' | 'last'): bool
   const target = moveMenuFocus(title, direction);
   const key = target?.dataset.menuKey;
   if (key) menuContext?.setTabStop(key);
-  return target !== null;
+  return target !== null && target !== title;
 };
 
 const openAndFocus = (boundary: 'first' | 'last'): void => {
@@ -351,12 +351,12 @@ const handleTitleKeydown = (event: KeyboardEvent): void => {
 
   if (['ArrowDown', 'Down'].includes(event.key)) {
     event.preventDefault();
-    openAndFocus('first');
+    if (isHorizontal.value || !moveTitleFocus('next')) openAndFocus('first');
     return;
   }
   if (['ArrowUp', 'Up'].includes(event.key)) {
     event.preventDefault();
-    openAndFocus('last');
+    if (isHorizontal.value || !moveTitleFocus('previous')) openAndFocus('last');
     return;
   }
   if (!isHorizontal.value && ['ArrowRight', 'Right'].includes(event.key)) {

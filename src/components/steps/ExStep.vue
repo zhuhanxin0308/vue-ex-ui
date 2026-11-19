@@ -280,7 +280,14 @@ const statusIcon = computed(() => {
 });
 
 // 事件处理
-const handleClick = () => {
+const handleClick = (event?: MouseEvent) => {
+  if (event?.defaultPrevented) return;
+  if (event?.target instanceof Element) {
+    const control = event.target.closest(
+      'a[href], button, input, select, textarea, label, summary, [tabindex], [role="button"], [role="link"], [contenteditable]:not([contenteditable="false"])'
+    );
+    if (control && control !== event.currentTarget) return;
+  }
   if (!props.disabled && isClickable.value) {
     stepsContext?.onStepClick(stepIndex.value, props.clickable === true);
   }

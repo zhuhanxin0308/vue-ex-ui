@@ -1,9 +1,10 @@
 <template>
   <Teleport
-    v-if="isOverlayVisible"
+    :disabled="!isOverlayVisible"
     to="body"
   >
     <button
+      v-if="isOverlayVisible"
       type="button"
       class="ex-sider__mask"
       :data-theme="configTheme"
@@ -12,71 +13,71 @@
       :aria-label="locale.collapse"
       @click="requestCollapsed(true, 'mask')"
     ></button>
-  </Teleport>
-
-  <aside
-    v-bind="$attrs"
-    ref="siderRef"
-    :class="siderClasses"
-    :style="siderStyles"
-    :aria-label="resolvedAriaLabel"
-    :role="isOverlayVisible ? 'dialog' : undefined"
-    :aria-modal="isOverlayVisible ? 'true' : undefined"
-    :hidden="isOverlayOpen && !isOverlayVisible"
-    :tabindex="isOverlayVisible ? -1 : undefined"
-  >
-    <div
-      :id="contentId"
-      class="ex-sider__content"
-      :hidden="isZeroWidth"
-      :inert="isZeroWidth ? true : undefined"
+    <aside
+      v-bind="$attrs"
+      ref="siderRef"
+      :class="siderClasses"
+      :style="siderStyles"
+      :data-theme="isOverlayVisible ? configTheme : $attrs['data-theme']"
+      :aria-label="resolvedAriaLabel"
+      :role="isOverlayVisible ? 'dialog' : undefined"
+      :aria-modal="isOverlayVisible ? 'true' : undefined"
+      :hidden="isOverlayOpen && !isOverlayVisible"
+      :tabindex="isOverlayVisible ? -1 : undefined"
     >
-      <slot></slot>
-    </div>
-
-    <button
-      v-if="collapsible && trigger"
-      type="button"
-      :class="['ex-sider__trigger', `ex-sider__trigger--${trigger}`]"
-      :aria-label="collapsed ? locale.expand : locale.collapse"
-      :aria-expanded="!collapsed"
-      :aria-controls="contentId"
-      @click="toggle"
-    >
-      <slot
-        name="trigger"
-        :collapsed="collapsed"
-        :broken="isBroken"
+      <div
+        :id="contentId"
+        class="ex-sider__content"
+        :hidden="isZeroWidth"
+        :inert="isZeroWidth ? true : undefined"
       >
-        <span
-          class="ex-sider__trigger-icon"
-          aria-hidden="true"
+        <slot></slot>
+      </div>
+
+      <button
+        v-if="collapsible && trigger"
+        type="button"
+        :class="['ex-sider__trigger', `ex-sider__trigger--${trigger}`]"
+        :aria-label="collapsed ? locale.expand : locale.collapse"
+        :aria-expanded="!collapsed"
+        :aria-controls="contentId"
+        @click="toggle"
+      >
+        <slot
+          name="trigger"
+          :collapsed="collapsed"
+          :broken="isBroken"
         >
-          <svg
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            stroke-width="2"
-            stroke-linecap="round"
-            stroke-linejoin="round"
+          <span
+            class="ex-sider__trigger-icon"
+            aria-hidden="true"
           >
-            <polyline
-              v-if="position === 'left'"
-              :points="collapsed ? '9 18 15 12 9 6' : '15 18 9 12 15 6'"
-            />
-            <polyline
-              v-else
-              :points="collapsed ? '15 18 9 12 15 6' : '9 18 15 12 9 6'"
-            />
-          </svg>
-        </span>
-      </slot>
-    </button>
-  </aside>
+            <svg
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            >
+              <polyline
+                v-if="position === 'left'"
+                :points="collapsed ? '9 18 15 12 9 6' : '15 18 9 12 15 6'"
+              />
+              <polyline
+                v-else
+                :points="collapsed ? '15 18 9 12 15 6' : '9 18 15 12 9 6'"
+              />
+            </svg>
+          </span>
+        </slot>
+      </button>
+    </aside>
+  </Teleport>
 </template>
 
 <script setup lang="ts">
-import { computed, inject, onBeforeUnmount, onMounted, ref, watch } from 'vue';
+import { computed, inject, onBeforeUnmount, onMounted, onUpdated, ref, watch } from 'vue';
 import { useOverlay } from '../../composables/useOverlay';
 import { useControllableState } from '../../composables/useControllableState';
 import { useLocale } from '../../locale';
@@ -161,6 +162,8 @@ const siderClasses = computed(() => [
     'ex-sider--neon-border': props.neonBorder ?? globalNeonEffect.value,
     'ex-sider--blur': props.blur,
     'ex-sider--no-animation': !globalAnimation.value,
+    'ex-no-animation': isOverlayVisible.value && !globalAnimation.value,
+    'ex-no-neon': isOverlayVisible.value && !globalNeonEffect.value,
     [`ex-sider--trigger-${props.trigger}`]: props.collapsible && Boolean(props.trigger),
   },
 ]);
@@ -196,6 +199,27 @@ const overlay = useOverlay({
   restoreFocus: true,
 });
 const isOverlayVisible = overlay.active;
+let internalOpener: HTMLElement | null = null;
+let restoredBeforeMove: HTMLElement | null = null;
+
+watch(isOverlayVisible, opened => {
+  const focused = document.activeElement;
+  if (opened) {
+    internalOpener =
+      focused instanceof HTMLElement && siderRef.value?.contains(focused) ? focused : null;
+  } else {
+    // 只保留浮层栈实际还焦的打开器，避免子抽屉或其他浮层抢走焦点。
+    restoredBeforeMove = focused === internalOpener ? internalOpener : null;
+    internalOpener = null;
+  }
+});
+onUpdated(() => {
+  // Teleport 移动包含焦点的节点会让浏览器回到 body，布局更新后恢复同一节点。
+  if (restoredBeforeMove?.isConnected && document.activeElement === document.body) {
+    restoredBeforeMove.focus({ preventScroll: true });
+  }
+  restoredBeforeMove = null;
+});
 
 let mediaQuery: MediaQueryList | null = null;
 let mediaChangeListener: ((event: MediaQueryListEvent) => void) | null = null;
@@ -269,7 +293,7 @@ watch(
 
 onMounted(() => {
   mounted = true;
-  unregisterSider = layoutContext?.registerSider() ?? null;
+  if (siderRef.value) unregisterSider = layoutContext?.registerSider(siderRef.value) ?? null;
   setupBreakpoint();
 });
 
@@ -287,6 +311,7 @@ defineExpose<ExSiderExposed>({ getElement, toggle });
 
 <style scoped lang="scss">
 @use '../../styles/mixins' as *;
+@use '../../styles/effect-boundary' as *;
 
 .ex-sider {
   position: relative;
@@ -439,6 +464,21 @@ defineExpose<ExSiderExposed>({ getElement, toggle });
 
   &--no-animation {
     transition: none;
+  }
+}
+
+.ex-sider.ex-no-neon {
+  @include effect-boundary {
+    box-shadow: none !important;
+    text-shadow: none !important;
+    filter: none !important;
+  }
+}
+
+.ex-sider.ex-no-animation {
+  @include effect-boundary {
+    transition: none !important;
+    animation: none !important;
   }
 }
 

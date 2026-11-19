@@ -66,6 +66,7 @@
           :aria-readonly="effectiveReadonly || undefined"
           :aria-describedby="controlAriaDescribedby"
           :aria-errormessage="controlAriaErrorMessage"
+          @beforeinput="handleBeforeInput"
           @input="handleInput"
           @change="handleChange"
           @focus="handleFocus"
@@ -98,6 +99,7 @@
           :aria-readonly="effectiveReadonly || undefined"
           :aria-describedby="controlAriaDescribedby"
           :aria-errormessage="controlAriaErrorMessage"
+          @beforeinput="handleBeforeInput"
           @input="handleInput"
           @change="handleChange"
           @focus="handleFocus"
@@ -239,7 +241,7 @@ import { useFormItem } from '../form/use-form-item';
 import ExIcon from '../icon/ExIcon.vue';
 import { useI18n } from '../../locale';
 import { generateId } from '../../utils/id';
-import { isComposingKeyboardEvent } from '../../utils/keyboard';
+import { isComposingKeyboardEvent, isCompositionInputEvent } from '../../utils/keyboard';
 import { hasRenderableContent } from '../../utils/vnode';
 import { useRenderComputed } from '../../composables/useRenderComputed';
 import {
@@ -574,7 +576,7 @@ const commitNativeValue = (event: Event): void => {
 };
 
 let ignoreCompositionInput: string | null = null;
-let discardedComposition = false;
+let discardedComposition: 'none' | 'waiting' | 'resumed' = 'none';
 
 function discardNativeDraft(): void {
   isComposing.value = false;
@@ -608,14 +610,18 @@ function synchronizeConfirmedValue(finishEditing = false): void {
 }
 
 watch([effectiveDisabled, effectiveReadonly], ([disabled, readonly]) => {
-  if (disabled || readonly) discardNativeDraft();
+  if (disabled || readonly) {
+    if (isComposing.value) discardedComposition = 'waiting';
+    discardNativeDraft();
+    synchronizeConfirmedValue(true);
+  }
 });
 
 watch(
   () => formItem?.resetRevision?.value,
   () => {
     // 同值重置也必须清除 lazy 草稿、本地错误和仍在进行的输入法组合。
-    discardedComposition ||= isComposing.value;
+    if (isComposing.value) discardedComposition = 'waiting';
     rawValue.value = normalizeInputValue(props.modelValue);
     validationError.value = null;
     discardNativeDraft();
@@ -626,22 +632,19 @@ watch(
 
 const handleCompositionStart = (): void => {
   if (effectiveDisabled.value || effectiveReadonly.value) return;
-  discardedComposition = false;
+  discardedComposition = 'none';
   isComposing.value = true;
   ignoreCompositionInput = null;
 };
 
 const handleCompositionEnd = (event: CompositionEvent): void => {
-  if (discardedComposition) {
+  if (discardedComposition !== 'none') {
     const target = event.target as HTMLInputElement | HTMLTextAreaElement;
     const cancelledValue = target.value;
-    discardedComposition = false;
+    discardedComposition = 'none';
     discardNativeDraft();
     // 浏览器可能在 compositionend 后补发 input；旧组合结果不能覆盖重置值。
     ignoreCompositionInput = cancelledValue;
-    queueMicrotask(() => {
-      ignoreCompositionInput = null;
-    });
     return;
   }
   if (effectiveDisabled.value || effectiveReadonly.value) {
@@ -653,15 +656,32 @@ const handleCompositionEnd = (event: CompositionEvent): void => {
   const target = event.target as HTMLInputElement | HTMLTextAreaElement;
   ignoreCompositionInput = target.value;
   commitNativeValue(event);
+};
 
-  queueMicrotask(() => {
-    ignoreCompositionInput = null;
-  });
+const handleBeforeInput = (event: Event): void => {
+  const edit = event as InputEvent;
+  if (!edit.inputType || isCompositionInputEvent(edit)) return;
+  if (discardedComposition === 'waiting') discardedComposition = 'resumed';
+  ignoreCompositionInput = null;
 };
 
 const handleInput = (event: Event): void => {
   const target = event.target as HTMLInputElement | HTMLTextAreaElement;
-  if (discardedComposition || effectiveDisabled.value || effectiveReadonly.value) {
+  const edit = event as InputEvent;
+  if (
+    !effectiveDisabled.value &&
+    !effectiveReadonly.value &&
+    discardedComposition === 'waiting' &&
+    !isCompositionInputEvent(edit)
+  ) {
+    discardedComposition = 'resumed';
+  }
+  if (
+    discardedComposition === 'waiting' ||
+    (discardedComposition === 'resumed' && isCompositionInputEvent(edit)) ||
+    effectiveDisabled.value ||
+    effectiveReadonly.value
+  ) {
     discardNativeDraft();
     return;
   }
@@ -669,8 +689,9 @@ const handleInput = (event: Event): void => {
     displayValue.value = target.value;
     return;
   }
-  if (ignoreCompositionInput === target.value) {
-    ignoreCompositionInput = null;
+  const ignoredValue = ignoreCompositionInput;
+  ignoreCompositionInput = null;
+  if (ignoredValue !== null && (ignoredValue === target.value || isCompositionInputEvent(edit))) {
     target.value = displayValue.value;
     return;
   }
@@ -678,7 +699,7 @@ const handleInput = (event: Event): void => {
 };
 
 const handleChange = (event: Event): void => {
-  if (effectiveDisabled.value || effectiveReadonly.value) {
+  if (discardedComposition === 'waiting' || effectiveDisabled.value || effectiveReadonly.value) {
     discardNativeDraft();
     return;
   }

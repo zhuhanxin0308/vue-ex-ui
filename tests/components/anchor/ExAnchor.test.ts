@@ -88,7 +88,7 @@ describe('ExAnchor', () => {
       },
     });
     vi.spyOn(wrapper.element, 'getBoundingClientRect').mockReturnValue(rect({ top: 10 }));
-    const linkElement = wrapper.find('.ex-anchor-link').element as HTMLElement;
+    const linkElement = wrapper.get('a').element;
     vi.spyOn(linkElement, 'getBoundingClientRect').mockReturnValue(
       rect({ top: 30, bottom: 50, height: 20 })
     );

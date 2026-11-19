@@ -1,10 +1,24 @@
 import { mount } from '@vue/test-utils';
-import { h, nextTick } from 'vue';
+import { h, nextTick, shallowRef } from 'vue';
 import ExBackTop from '../../../src/components/back-top/ExBackTop.vue';
 import ExConfigProvider from '../../../src/components/config-provider/ExConfigProvider.vue';
 import { getPositionStyle, resolveTarget } from '../../../src/components/back-top/utils';
 
 describe('ExBackTop', () => {
+  it('稳定 getter 切换面板后返回顶部操作只作用于新面板', async () => {
+    const first = document.createElement('div');
+    const second = document.createElement('div');
+    first.scrollTop = second.scrollTop = 220;
+    const target = shallowRef(first);
+    const wrapper = mount(ExBackTop, {
+      props: { target: () => target.value, scrollBehavior: 'auto' },
+    });
+    target.value = second;
+    await wrapper.vm.scrollToTop();
+    expect([first.scrollTop, second.scrollTop]).toEqual([220, 0]);
+    wrapper.unmount();
+  });
+
   afterEach(() => {
     vi.restoreAllMocks();
     vi.useRealTimers();

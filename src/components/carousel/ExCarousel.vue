@@ -39,11 +39,12 @@
         @click="prev"
       >
         <slot name="arrow-prev">
-          <ExIcon
-            icon="arrow-left-s-line"
-            :size="24"
+          <span
+            class="ex-carousel__arrow-glyph"
             aria-hidden="true"
-          />
+          >
+            ‹
+          </span>
         </slot>
       </button>
 
@@ -59,11 +60,12 @@
         @click="next"
       >
         <slot name="arrow-next">
-          <ExIcon
-            icon="arrow-right-s-line"
-            :size="24"
+          <span
+            class="ex-carousel__arrow-glyph"
             aria-hidden="true"
-          />
+          >
+            ›
+          </span>
         </slot>
       </button>
     </div>
@@ -92,7 +94,6 @@
 
 <script setup lang="ts">
 import { normalizeCustomClass } from '../../composables/useCustomClass';
-import ExIcon from '../icon/ExIcon.vue';
 import { computed, ref, onMounted, onBeforeUnmount, provide, watch } from 'vue';
 import type { ExCarouselProps, ExCarouselEmits, ExCarouselExposed } from './types';
 import { useI18n } from '../../locale';
@@ -279,16 +280,15 @@ const trackStyles = computed(() => {
 
   if (effect.value === 'slide') {
     if (direction.value === 'horizontal') {
-      styles.transform = `translateX(-${currentIndex.value * 100}%)`;
-      styles.transition = prefersReducedMotion.value
-        ? 'none'
-        : 'transform 0.3s cubic-bezier(0.4, 0, 0.2, 1)';
+      // 逻辑起点随实际继承的 direction 布局，兼容运行时样式与旧版浏览器。
+      styles.insetInlineStart = `${-currentIndex.value * 100}%`;
     } else {
       styles.transform = `translateY(-${currentIndex.value * 100}%)`;
-      styles.transition = prefersReducedMotion.value
-        ? 'none'
-        : 'transform 0.3s cubic-bezier(0.4, 0, 0.2, 1)';
     }
+    const property = direction.value === 'horizontal' ? 'inset-inline-start' : 'transform';
+    styles.transition = prefersReducedMotion.value
+      ? 'none'
+      : `${property} ${TRANSITION_DURATION_MS}ms cubic-bezier(0.4, 0, 0.2, 1)`;
   } else if (effect.value === 'fade') {
     // Fade 效果由 CSS 处理，移除 transform
     styles.transform = 'none';
@@ -344,11 +344,14 @@ const prev = () => {
   goTo(prevIndex);
 };
 
+const isRtl = () => carouselRef.value && getComputedStyle(carouselRef.value).direction === 'rtl';
+
 const handleKeydown = (event: KeyboardEvent) => {
   if (event.defaultPrevented || isComposingKeyboardEvent(event)) return;
   const horizontal = direction.value === 'horizontal';
-  if (event.key === (horizontal ? 'ArrowLeft' : 'ArrowUp')) prev();
-  else if (event.key === (horizontal ? 'ArrowRight' : 'ArrowDown')) next();
+  const rtl = horizontal && isRtl();
+  if (event.key === (horizontal ? (rtl ? 'ArrowRight' : 'ArrowLeft') : 'ArrowUp')) prev();
+  else if (event.key === (horizontal ? (rtl ? 'ArrowLeft' : 'ArrowRight') : 'ArrowDown')) next();
   else if (event.key === 'Home') goTo(0);
   else if (event.key === 'End') goTo(itemCount.value - 1);
   else return;
@@ -484,7 +487,7 @@ const handleTouchEnd = (e: TouchEvent) => {
 
   if (direction.value === 'horizontal') {
     if (Math.abs(deltaX) > SWIPE_TRIGGER_THRESHOLD_PX) {
-      if (deltaX > 0) {
+      if (isRtl() ? deltaX < 0 : deltaX > 0) {
         prev();
       } else {
         next();

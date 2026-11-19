@@ -68,7 +68,7 @@
             v-if="searchable"
             :id="controlId"
             ref="inputRef"
-            v-model="searchQuery"
+            :value="searchInput.displayValue.value"
             class="ex-select__input"
             v-bind="triggerAttrs"
             role="combobox"
@@ -90,9 +90,11 @@
             @click.stop="handleInputClick"
             @focus="handleFocus"
             @blur="handleBlur"
-            @input="handleSearch"
+            @beforeinput="searchInput.handleBeforeInput"
+            @paste="searchInput.startEdit"
+            @input="searchInput.handleInput"
             @compositionstart="handleCompositionStart"
-            @compositionend="handleCompositionEnd"
+            @compositionend="searchInput.endComposition"
             @keydown.stop="handleKeydown"
           />
           <span
@@ -109,7 +111,7 @@
             v-if="searchable"
             :id="controlId"
             ref="inputRef"
-            v-model="searchQuery"
+            :value="searchInput.displayValue.value"
             class="ex-select__input"
             v-bind="triggerAttrs"
             role="combobox"
@@ -136,9 +138,11 @@
             @click.stop="handleInputClick"
             @focus="handleFocus"
             @blur="handleBlur"
-            @input="handleSearch"
+            @beforeinput="searchInput.handleBeforeInput"
+            @paste="searchInput.startEdit"
+            @input="searchInput.handleInput"
             @compositionstart="handleCompositionStart"
-            @compositionend="handleCompositionEnd"
+            @compositionend="searchInput.endComposition"
             @keydown.stop="handleKeydown"
           />
           <span
@@ -428,6 +432,7 @@ import { getOptionKey, isGroup, useSelectOptions } from './use-select-options';
 import type { SelectVirtualRow } from './use-select-options';
 import { usePopupOverlay } from '../../composables/usePopupOverlay';
 import { isComposingKeyboardEvent } from '../../utils/keyboard';
+import { useSearchInput } from '../../composables/useSearchInput';
 import { useSelectAria } from './use-select-aria';
 import { useSelectRemote } from './use-select-remote';
 import { useControllableState } from '../../composables/useControllableState';
@@ -479,7 +484,6 @@ const virtualListRef = ref<InstanceType<typeof ExVirtualList>>();
 
 const dropdownVisible = ref(false);
 const searchQuery = ref('');
-const composing = ref(false);
 const hoverIndex = ref(-1);
 const configTheme = useConfigTheme();
 const themeOverrides = useThemeOverrides();
@@ -670,7 +674,7 @@ const showDropdown = (loadRemote = true) => {
 const hideDropdown = (restoreFocus = false) => {
   if (restoreFocus && dropdownRef.value?.contains(document.activeElement)) focus();
   remote.cancel();
-  composing.value = false;
+  searchInput.discard();
   if (!dropdownVisible.value) {
     searchQuery.value = '';
     hoverIndex.value = -1;
@@ -772,30 +776,21 @@ watch([effectiveDisabled, effectiveReadonly], ([disabled, readonly]) => {
   hideDropdown();
 });
 
-const handleSearch = (event?: Event) => {
-  if (
-    effectiveDisabled.value ||
-    effectiveReadonly.value ||
-    composing.value ||
-    (event instanceof InputEvent && event.isComposing)
-  )
-    return;
+const searchInput = useSearchInput(inputRef, searchQuery, value => {
+  if (effectiveDisabled.value || effectiveReadonly.value) return;
+  searchQuery.value = value;
   // 过滤结果变化后重置高亮，避免索引指向已被过滤掉的选项
   hoverIndex.value = -1;
   if (!dropdownVisible.value) {
     showDropdown(false);
   }
   remote.search(searchQuery.value);
-};
+});
 
 const handleCompositionStart = () => {
-  composing.value = true;
+  if (effectiveDisabled.value || effectiveReadonly.value) return;
+  searchInput.startComposition();
   remote.cancel();
-};
-const handleCompositionEnd = (event: CompositionEvent) => {
-  composing.value = false;
-  searchQuery.value = (event.target as HTMLInputElement).value;
-  handleSearch();
 };
 
 const handleRetryKeydown = (event: KeyboardEvent) => {
@@ -812,7 +807,7 @@ const handleKeydown = async (event: KeyboardEvent) => {
   if (
     effectiveDisabled.value ||
     effectiveReadonly.value ||
-    composing.value ||
+    searchInput.isComposing() ||
     isComposingKeyboardEvent(event)
   )
     return;
@@ -822,7 +817,7 @@ const handleKeydown = async (event: KeyboardEvent) => {
     event.preventDefault();
     const query = searchQuery.value;
     await nextTick();
-    if (!dropdownVisible.value || searchQuery.value !== query || composing.value) return;
+    if (!dropdownVisible.value || searchQuery.value !== query || searchInput.isComposing()) return;
     hoverIndex.value = event.key === 'Enter' ? findEnabledIndex(-1, 1) : -1;
   }
 

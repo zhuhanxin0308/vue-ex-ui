@@ -82,20 +82,23 @@
 
     // 交替模式
     &.ex-timeline-item--alternate {
-      grid-template-columns: 1fr auto 1fr;
+      grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
       gap: var(--ex-spacing-4);
 
       .ex-timeline-item__tail-wrapper {
-        order: 2;
+        grid-column: 2;
+        grid-row: 1;
       }
 
       .ex-timeline-item__content--left {
-        order: 1;
+        grid-column: 1;
+        grid-row: 1;
         text-align: right;
       }
 
       .ex-timeline-item__content--right {
-        order: 3;
+        grid-column: 3;
+        grid-row: 1;
       }
 
       // 左侧项
@@ -528,11 +531,11 @@
       .ex-timeline-item__content--right {
         display: block !important;
         text-align: left !important;
-        order: 3;
+        grid-column: 2;
       }
 
       .ex-timeline-item__tail-wrapper {
-        order: 2;
+        grid-column: 1;
       }
     }
 

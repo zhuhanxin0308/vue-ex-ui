@@ -345,6 +345,78 @@ describe('ExImageCompress', () => {
     expect(imageCompress.attributes('aria-busy')).toBe('false');
   });
 
+  it('start 监听器同步重入时仍共享已发布的压缩任务', async () => {
+    const pending = deferred<CompressResult>();
+    utilityMocks.loadImageResource.mockResolvedValue(createResource('source'));
+    utilityMocks.compressLoadedImage.mockReturnValue(pending.promise);
+    let reentrant: Promise<CompressResult> | undefined;
+    const onStart = vi.fn(() => {
+      if (onStart.mock.calls.length === 1) reentrant = exposed.compress();
+    });
+    const imageCompress = mountCompress({ props: { src: '/source.jpg', onStart } });
+    await flushPromises();
+    const exposed = imageCompress.vm as unknown as ExImageCompressExposed;
+
+    const first = exposed.compress();
+    expect(reentrant).toBe(first);
+    expect(onStart).toHaveBeenCalledOnce();
+    expect(utilityMocks.compressLoadedImage).toHaveBeenCalledOnce();
+    const compressed = createResult();
+    pending.resolve(compressed);
+    await expect(first).resolves.toBe(compressed);
+    expect(imageCompress.emitted('compress')).toEqual([[compressed]]);
+  });
+
+  it('内置压缩按钮展示任务错误，重试和重置均可清除反馈', async () => {
+    const failure = new ExImageCompressError('TARGET_UNREACHABLE', '目标大小无法达到');
+    const retry = deferred<CompressResult>();
+    utilityMocks.loadImageResource.mockResolvedValue(createResource('source'));
+    utilityMocks.compressLoadedImage
+      .mockRejectedValueOnce(failure)
+      .mockReturnValueOnce(retry.promise)
+      .mockRejectedValueOnce(failure);
+    const imageCompress = mountCompress({ props: { src: '/source.png' } });
+    await flushPromises();
+    const button = imageCompress.get('.ex-image-compress__actions button:nth-child(2)');
+
+    await button.trigger('click');
+    await flushPromises();
+    expect(imageCompress.get('[role="alert"]').text()).toBe(failure.message);
+    expect(imageCompress.emitted('error')).toEqual([[failure]]);
+    await button.trigger('click');
+    expect(imageCompress.find('[role="alert"]').exists()).toBe(false);
+    retry.resolve(createResult());
+    await flushPromises();
+    expect(imageCompress.find('[role="alert"]').exists()).toBe(false);
+    await button.trigger('click');
+    await flushPromises();
+    expect(imageCompress.get('[role="alert"]').text()).toBe(failure.message);
+    (imageCompress.vm as unknown as ExImageCompressExposed).reset();
+    await nextTick();
+    expect(imageCompress.find('[role="alert"]').exists()).toBe(false);
+  });
+
+  it('被重置任务迟到的编码失败不能污染新的压缩结果', async () => {
+    const obsolete = deferred<CompressResult>();
+    utilityMocks.loadImageResource.mockResolvedValue(createResource('source'));
+    utilityMocks.compressLoadedImage
+      .mockReturnValueOnce(obsolete.promise)
+      .mockResolvedValueOnce(createResult());
+    const imageCompress = mountCompress({ props: { src: '/source.jpg' } });
+    await flushPromises();
+    const exposed = imageCompress.vm as unknown as ExImageCompressExposed;
+    const first = exposed.compress().catch(error => error);
+    exposed.reset();
+    await exposed.compress();
+    obsolete.reject(new ExImageCompressError('ENCODE_FAILED', '旧任务失败'));
+
+    expect(await first).toMatchObject({ code: 'ABORTED' });
+    await nextTick();
+    expect(imageCompress.emitted('error')).toBeUndefined();
+    expect(imageCompress.find('[role="alert"]').exists()).toBe(false);
+    expect(exposed.getResult()).not.toBeNull();
+  });
+
   it('压缩期间设置变化会取消旧快照且不提交失效结果', async () => {
     const resource = createResource('source');
     const pending = deferred<CompressResult>();
@@ -423,6 +495,26 @@ describe('ExImageCompress', () => {
     expect(imageCompress.get('.ex-image-compress__error').text()).toBe('图片无法解码');
     expect(imageCompress.emitted('error')).toEqual([[failure]]);
     expect(utilityMocks.compressLoadedImage).not.toHaveBeenCalled();
+  });
+
+  it('手动压缩等待的同一资源加载失败只发布一次来源错误', async () => {
+    const source = deferred<ImageCompressLoadedResource>();
+    const failure = new ExImageCompressError('LOAD_FAILED', '图片无法解码');
+    utilityMocks.loadImageResource.mockReturnValueOnce(source.promise);
+    const imageCompress = mountCompress({ props: { src: '/broken.png' } });
+    const exposed = imageCompress.vm as unknown as ExImageCompressExposed;
+    const pending = exposed.compress();
+    const rejected = expect(pending).rejects.toBe(failure);
+    source.reject(failure);
+    await rejected;
+    await nextTick();
+
+    expect(imageCompress.emitted('error')).toEqual([[failure]]);
+    expect(imageCompress.get('[role="alert"]').text()).toBe(failure.message);
+    expect(utilityMocks.compressLoadedImage).not.toHaveBeenCalled();
+    exposed.reset();
+    await nextTick();
+    expect(imageCompress.get('[role="alert"]').text()).toBe(failure.message);
   });
 
   it('reset 清理压缩预览和结果并恢复 props 设置，但保留已加载原图', async () => {

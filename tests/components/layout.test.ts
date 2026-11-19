@@ -82,6 +82,15 @@ describe('Layout v2', () => {
   });
 
   describe('ExLayout', () => {
+    it('Content 和普通元素内的侧栏不改变外层自动方向', async () => {
+      const wrapper = mount(ExLayout, {
+        slots: { default: () => [h(ExContent, {}, () => h(ExSider)), h('div', [h(ExSider)])] },
+      });
+      await nextTick();
+      expect(wrapper.classes()).toContain('ex-layout--vertical');
+      wrapper.unmount();
+    });
+
     it('使用无额外地标语义的根容器并透传原生属性', () => {
       const wrapper = mount(ExLayout, {
         attrs: {
@@ -453,8 +462,10 @@ describe('Layout v2', () => {
       });
       await nextTick();
 
-      expect(wrapper.get('aside').attributes('role')).toBe('dialog');
-      expect(wrapper.get('aside').attributes('aria-modal')).toBe('true');
+      const panel = document.body.querySelector('aside')!;
+      expect(panel.parentElement).toBe(document.querySelector('.ex-sider__mask')?.parentElement);
+      expect(panel.getAttribute('role')).toBe('dialog');
+      expect(panel.getAttribute('aria-modal')).toBe('true');
       expect(document.body.style.overflow).toBe('hidden');
 
       document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
@@ -467,6 +478,28 @@ describe('Layout v2', () => {
       expect(document.activeElement).toBe(opener);
       wrapper.unmount();
       opener.remove();
+    });
+
+    it('侧栏从页面移回布局后焦点返回原有内置触发器', async () => {
+      initialMediaMatches = false;
+      const wrapper = mount(ExSider, {
+        attachTo: document.body,
+        props: { breakpoint: 'md', defaultCollapsed: true, collapsible: true },
+        slots: { default: () => h('button', '操作') },
+      });
+      const trigger = wrapper.get<HTMLButtonElement>('.ex-sider__trigger').element;
+      trigger.focus();
+      trigger.click();
+      await nextTick();
+      const action = document.querySelector<HTMLButtonElement>(
+        '[role="dialog"] .ex-sider__content button'
+      )!;
+      action.focus();
+      action.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+      await nextTick();
+      expect(trigger.getAttribute('aria-expanded')).toBe('false');
+      expect(document.activeElement).toBe(trigger);
+      wrapper.unmount();
     });
 
     it('受控展开侧栏在窄屏显示遮罩，遮罩请求关闭但不篡改状态', async () => {
@@ -483,7 +516,9 @@ describe('Layout v2', () => {
       mask?.click();
       await nextTick();
 
-      expect(wrapper.get('aside').classes()).not.toContain('ex-sider--collapsed');
+      expect(document.querySelector('aside')?.classList.contains('ex-sider--collapsed')).toBe(
+        false
+      );
       expect(wrapper.emitted('collapse')).toContainEqual([true, 'mask']);
       wrapper.unmount();
       expect(document.body.querySelector('.ex-sider__mask')).toBeNull();
@@ -493,7 +528,7 @@ describe('Layout v2', () => {
       initialMediaMatches = false;
       const wrapper = mount(ExConfigProvider, {
         attachTo: document.body,
-        props: { zIndex: 3000 },
+        props: { zIndex: 3000, animation: false, neonEffect: false },
         slots: {
           default: () =>
             h(ExSider, {
@@ -508,14 +543,16 @@ describe('Layout v2', () => {
       expect(document.body.querySelector<HTMLElement>('.ex-sider__mask')?.style.zIndex).toBe(
         '3039'
       );
-      expect(wrapper.get('aside').element.style.zIndex).toBe('3040');
+      expect(document.querySelector('aside')?.style.zIndex).toBe('3040');
+      expect(document.querySelector('aside')?.classList.contains('ex-no-animation')).toBe(true);
+      expect(document.querySelector('aside')?.classList.contains('ex-no-neon')).toBe(true);
 
       await wrapper.setProps({ zIndex: 3200 });
       await nextTick();
       expect(document.body.querySelector<HTMLElement>('.ex-sider__mask')?.style.zIndex).toBe(
         '3239'
       );
-      expect(wrapper.get('aside').element.style.zIndex).toBe('3240');
+      expect(document.querySelector('aside')?.style.zIndex).toBe('3240');
       wrapper.unmount();
     });
 

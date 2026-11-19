@@ -406,12 +406,13 @@ const stopDrag = () => {
 
 /** 每次拖拽只维护一组全局监听，并区分正常释放与系统取消。 */
 const startDrag = (computeValue: (event: PointerEvent) => boolean) => (event: PointerEvent) => {
-  if (!interactive.value) return;
+  if (!interactive.value || event.button !== 0 || removeDragListeners) return;
   event.preventDefault();
-  stopDrag();
-  let hasChanged = computeValue(event);
+  const pointerId = event.pointerId;
+  let hasChanged = false;
 
   const move = (moveEvent: PointerEvent) => {
+    if (moveEvent.pointerId !== pointerId) return;
     if (!interactive.value) {
       cleanup();
       return;
@@ -422,20 +423,31 @@ const startDrag = (computeValue: (event: PointerEvent) => boolean) => (event: Po
     window.removeEventListener('pointermove', move);
     window.removeEventListener('pointerup', finish);
     window.removeEventListener('pointercancel', cancel);
-    window.removeEventListener('blur', cancel);
+    window.removeEventListener('blur', cleanup);
     if (removeDragListeners === cleanup) removeDragListeners = null;
   };
-  const finish = () => {
+  const finish = (finishEvent: PointerEvent) => {
+    if (finishEvent.pointerId !== pointerId) return;
     cleanup();
     if (interactive.value && hasChanged) commit();
   };
-  const cancel = () => cleanup();
+  // 指针取消只结束所属会话，窗口失焦则无条件清理当前拖动。
+  const cancel = (cancelEvent: PointerEvent) => {
+    if (cancelEvent.pointerId === pointerId) cleanup();
+  };
 
   window.addEventListener('pointermove', move);
   window.addEventListener('pointerup', finish);
   window.addEventListener('pointercancel', cancel);
-  window.addEventListener('blur', cancel);
+  window.addEventListener('blur', cleanup);
   removeDragListeners = cleanup;
+  // 首次写值会触发业务回调；同步卸载或关闭时必须已经能够清理本会话。
+  try {
+    hasChanged = computeValue(event);
+  } catch (error) {
+    cleanup();
+    throw error;
+  }
 };
 
 const computeSV = (event: PointerEvent) => {
@@ -556,11 +568,13 @@ const updatePanelPosition = () => {
 
   const triggerRect = triggerRef.value.getBoundingClientRect();
   const panelWidth = panelRef.value.offsetWidth;
-  const panelHeight = panelRef.value.offsetHeight;
   const viewportWidth = document.documentElement.clientWidth || window.innerWidth;
   const viewportHeight = document.documentElement.clientHeight || window.innerHeight;
   const gap = 6;
   const edge = 8;
+  // 先限制面板盒高，再计算贴边位置；长色板通过内部滚动到达底部操作。
+  const maxHeight = Math.max(0, viewportHeight - edge * 2);
+  const panelHeight = Math.min(panelRef.value.offsetHeight, maxHeight);
   const spaceBelow = viewportHeight - triggerRect.bottom;
   const preferredTop =
     spaceBelow < panelHeight + gap && triggerRect.top > panelHeight + gap
@@ -573,6 +587,7 @@ const updatePanelPosition = () => {
     position: 'fixed',
     top: `${top}px`,
     left: `${left}px`,
+    maxHeight: `${maxHeight}px`,
   };
 };
 

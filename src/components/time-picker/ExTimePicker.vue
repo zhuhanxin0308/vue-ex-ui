@@ -725,9 +725,9 @@ const selectNow = () => {
   if (!interactive.value) return;
   const now = new Date();
   const selection = findClosestSelectableTime({
-    h: now.getHours(),
-    m: now.getMinutes(),
-    s: now.getSeconds(),
+    h: showHour.value ? now.getHours() : 0,
+    m: showMinute.value ? now.getMinutes() : 0,
+    s: showSecond.value ? now.getSeconds() : 0,
   });
   if (!selection) return;
   draft.h = selection.h;
