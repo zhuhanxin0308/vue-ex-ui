@@ -21,7 +21,7 @@ const pageSize = ref(10);
 const pagination = ref<ui.ExPaginationExposed>();
 const anchor = ref<ui.ExAnchorExposed>();
 const scrollContainer = ref<HTMLElement>();
-const description = ref('帮助说明');
+const description = ref('tooltip-help');
 const zIndex = ref(1000);
 const virtualList = ref<{ scrollToIndex(index: number): void }>();
 const virtualRows = reactive([
@@ -170,6 +170,9 @@ const scenes: Record<string, () => VNodeChild> = {
       h(ui.ExPagination, { current: 5, total: 100, showQuickJumper: true }),
     ]),
     section('dynamic-tooltip', '动态说明', [
+      h('span', { id: 'tooltip-help', hidden: true }, '帮助说明'),
+      h('span', { id: 'tooltip-error', hidden: true }, '当前错误'),
+      h('span', { id: 'tooltip-latest-error', hidden: true }, '最新错误'),
       h(ui.ExTooltip, { content: '提示说明', trigger: 'click', closeDelay: 0 }, () =>
         h(
           ui.ExButton,
@@ -177,8 +180,16 @@ const scenes: Record<string, () => VNodeChild> = {
           () => '显示提示'
         )
       ),
+      h('input', {
+        id: 'description-input',
+        'aria-label': '关联说明标识',
+        value: description.value,
+        onInput: (event: Event) => {
+          description.value = (event.target as HTMLInputElement).value;
+        },
+      }),
       action('change-description', '更新说明', () => {
-        description.value = '当前错误';
+        description.value = 'tooltip-latest-error';
       }),
     ]),
     section('disabled-menu', '禁用菜单项', [
