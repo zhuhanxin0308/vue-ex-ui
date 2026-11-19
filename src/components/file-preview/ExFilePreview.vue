@@ -525,9 +525,9 @@ const imageStyle = computed(() => ({
   transform: `scale(${currentScale.value}) rotate(${currentRotate.value}deg)`,
 }));
 
-watch([currentIndex, () => currentFile.value?.url], (next, previous) => {
-  // 只在已展示文件实际切换时请求复位；等待父级确认导航不会改变旧图状态。
-  if (previous[1] === undefined || (next[0] === previous[0] && next[1] === previous[1])) return;
+watch([currentUrl, currentType], (_, [previousUrl]) => {
+  // 资源在列表内移动仍是同一视图，首次分配对象地址也保留默认变换。
+  if (!previousUrl) return;
   const initialScale = clampPreviewScale(1, scaleConfig.value);
   if (currentScale.value !== initialScale) scaleState.request(initialScale);
   if (currentRotate.value !== 0) rotateState.request(0);
@@ -777,12 +777,7 @@ const cancelTextRequest = (): void => {
   textRequestController = null;
 };
 
-const loadTextContent = async (
-  url: string,
-  file: PreviewFile,
-  index: number,
-  byteLimit: number
-): Promise<void> => {
+const loadTextContent = async (url: string, byteLimit: number): Promise<void> => {
   cancelTextRequest();
   const revision = ++textRequestRevision;
   const controller = new AbortController();
@@ -813,7 +808,7 @@ const loadTextContent = async (
     if (revision !== textRequestRevision || controller.signal.aborted) return;
     textContent.value = content;
     textState.value = 'ready';
-    emit('ready', file, index);
+    if (currentFile.value) emit('ready', currentFile.value, currentIndex.value);
   } catch (cause) {
     if (
       revision !== textRequestRevision ||
@@ -827,25 +822,17 @@ const loadTextContent = async (
         : new ExFilePreviewError('文本内容加载失败', { code: 'load-failed', cause });
     textError.value = error;
     textState.value = 'error';
-    emit('error', error, file, index);
+    if (currentFile.value) emit('error', error, currentFile.value, currentIndex.value);
   } finally {
     if (revision === textRequestRevision) textRequestController = null;
   }
 };
 
 watch(
-  [
-    overlayActive,
-    currentFile,
-    currentType,
-    currentUrl,
-    currentIndex,
-    normalizedMaxTextBytes,
-    sourcesReady,
-  ],
-  ([visible, file, type, url, index, byteLimit, ready]) => {
-    if (ready && visible && file && url && (type === 'text' || type === 'code')) {
-      void loadTextContent(url, file, index, byteLimit);
+  [overlayActive, currentType, currentUrl, normalizedMaxTextBytes, sourcesReady],
+  ([visible, type, url, byteLimit, ready]) => {
+    if (ready && visible && url && (type === 'text' || type === 'code')) {
+      void loadTextContent(url, byteLimit);
       return;
     }
     cancelTextRequest();

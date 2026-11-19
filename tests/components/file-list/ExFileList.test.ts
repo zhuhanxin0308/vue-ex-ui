@@ -111,6 +111,38 @@ describe('ExFileList', () => {
       wrapper.unmount();
     });
 
+    it.each([false, true])('先后两个搜索请求跨页提交，旧值后到=%s', async oldArrivesLast => {
+      const wrapper = mount(ExFileList, {
+        props: {
+          files: files.map(file => ({ ...file, name: 'abc-' + file.name })),
+          searchValue: '',
+          showPagination: true,
+          pageSize: 1,
+          defaultCurrentPage: 2,
+        },
+      });
+      const search = wrapper.get('.ex-file-list__search input');
+      const pager = wrapper.getComponent(ExPagination);
+      await search.setValue('ab');
+      pager.vm.goToPage(3);
+      await nextTick();
+      await search.setValue('abc');
+      if (oldArrivesLast) {
+        await wrapper.setProps({ searchValue: ' ABC ' });
+        expect(pager.props('current')).toBe(1);
+        pager.vm.goToPage(4);
+        await nextTick();
+        await wrapper.setProps({ searchValue: ' AB ' });
+        expect(pager.props('current')).toBe(4);
+      } else {
+        await wrapper.setProps({ searchValue: 'ab' });
+        expect(pager.props('current')).toBe(3);
+        await wrapper.setProps({ searchValue: 'abc' });
+        expect(pager.props('current')).toBe(1);
+      }
+      wrapper.unmount();
+    });
+
     it('树形全选与实际展开行一致，取消当前页选择保留折叠文件', async () => {
       const wrapper = mount(ExFileList, {
         props: {
@@ -134,6 +166,60 @@ describe('ExFileList', () => {
       expect(wrapper.findAll('[role="treeitem"]')).toHaveLength(3);
       await wrapper.get('[aria-label="Select visible files"]').trigger('click');
       expect(wrapper.emitted('update:selectedIds')?.at(-1)?.[0]).toEqual(selected);
+      wrapper.unmount();
+    });
+
+    it('跨多轮翻页逐字输入后按确认值回收，旧搜索都不重置较晚选择的页码', async () => {
+      const wrapper = mount(ExFileList, {
+        props: {
+          files: files.map(file => ({ ...file, name: 'abcdef-' + file.name })),
+          searchValue: '',
+          showPagination: true,
+          pageSize: 1,
+          defaultCurrentPage: 2,
+        },
+      });
+      const search = wrapper.get('.ex-file-list__search input');
+      const pager = wrapper.getComponent(ExPagination);
+      await search.setValue('a');
+      await search.setValue('ab');
+      pager.vm.goToPage(3);
+      await nextTick();
+      await search.setValue('abc');
+      await search.setValue('abcd');
+      pager.vm.goToPage(4);
+      await nextTick();
+      await search.setValue('abcde');
+      for (const searchValue of ['a', 'ABCD', ' ab ', 'abc']) {
+        await wrapper.setProps({ searchValue });
+        expect(pager.props('current')).toBe(4);
+      }
+      await wrapper.setProps({ searchValue: 'ABCDE ' });
+      expect(pager.props('current')).toBe(1);
+      pager.vm.goToPage(3);
+      await nextTick();
+      await wrapper.setProps({ searchValue: 'ab' });
+      expect(pager.props('current')).toBe(1);
+      wrapper.unmount();
+    });
+
+    it('解除受控会结束被拒绝的搜索，后续独立赋值按新条件复位', async () => {
+      const wrapper = mount(ExFileList, {
+        props: {
+          files,
+          searchValue: '',
+          showPagination: true,
+          pageSize: 1,
+          defaultCurrentPage: 2,
+        },
+      });
+      const pager = wrapper.getComponent(ExPagination);
+      await wrapper.get('.ex-file-list__search input').setValue('o');
+      pager.vm.goToPage(3);
+      await nextTick();
+      await wrapper.setProps({ searchValue: undefined });
+      await wrapper.setProps({ searchValue: 'o' });
+      expect(pager.props('current')).toBe(1);
       wrapper.unmount();
     });
 

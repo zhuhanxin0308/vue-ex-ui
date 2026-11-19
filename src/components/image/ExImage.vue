@@ -71,8 +71,6 @@ const imageClasses = computed(() => [
   {
     'ex-image--preview': props.preview,
     'ex-image--explicit-width': hasExplicitImageDimension(normalizedWidth.value),
-    'ex-image--explicit-height': hasExplicitImageDimension(normalizedHeight.value),
-    'ex-image--aspect-ratio': Boolean(normalizedAspectRatio.value),
     'ex-image--preview-ready': canPreview.value,
     'ex-image--circle': normalizedRadius.value === '50%',
   },

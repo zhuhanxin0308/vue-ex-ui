@@ -224,6 +224,26 @@ describe('ExFilePreview', () => {
   });
 
   describe('缩放与旋转', () => {
+    it('当前 File 因删除前项而换到新索引时保留同一张图的视图', async () => {
+      class ObjectURL extends URL {
+        static createObjectURL = (source: Blob | MediaSource) => 'blob:' + (source as File).name;
+        static revokeObjectURL = vi.fn();
+      }
+      vi.stubGlobal('URL', ObjectURL);
+      const first = new File(['a'], 'a.png', { type: 'image/png' });
+      const second = new File(['b'], 'b.png', { type: 'image/png' });
+      const wrapper = mountPreview({
+        props: { visible: true, files: [first, second], defaultCurrentIndex: 1 },
+      });
+      await nextTick();
+      document.querySelector<HTMLButtonElement>('[aria-label="Zoom in"]')!.click();
+      document.querySelector<HTMLButtonElement>('[aria-label="Rotate clockwise"]')!.click();
+      await wrapper.setProps({ files: [second] });
+      const image = document.querySelector<HTMLImageElement>('.ex-file-preview__image')!;
+      expect(image.getAttribute('src')).toBe('blob:b.png');
+      expect(image.style.transform).toBe('scale(1.1) rotate(90deg)');
+      expect(wrapper.emitted('update:currentIndex')?.at(-1)).toEqual([0]);
+    });
     it('十进制缩放精确到达边界，切换图片恢复默认变换', async () => {
       const wrapper = mountPreview({
         props: { visible: true, files: imageFiles, minScale: 0.7, scaleStep: 0.1 },
@@ -330,6 +350,24 @@ describe('ExFilePreview', () => {
   });
 
   describe('文本与代码加载', () => {
+    it.each([true, false])('文件移动期间复用文本请求，按新索引报告结果，成功=%s', async ok => {
+      let finish!: (result: Response) => void;
+      const fetchText = vi.fn(() => new Promise<Response>(resolve => (finish = resolve)));
+      vi.stubGlobal('fetch', fetchText);
+      const wrapper = mountPreview({
+        props: { visible: true, files: ['first.txt', 'note.txt'], defaultCurrentIndex: 1 },
+      });
+      await nextTick();
+      await wrapper.setProps({ files: ['note.txt'] });
+      expect(fetchText).toHaveBeenCalledTimes(1);
+      finish(response('body', { ok, status: ok ? 200 : 404 }));
+      await flushPromises();
+      const event = wrapper.emitted(ok ? 'ready' : 'error')?.at(-1);
+      expect(event?.slice(-2)).toEqual([{ url: 'note.txt' }, 0]);
+      await wrapper.setProps({ files: ['note.txt', 'other.txt'] });
+      expect(fetchText).toHaveBeenCalledTimes(1);
+      expect(document.querySelector('.ex-file-preview__loading')).toBeNull();
+    });
     it('空响应体正常完成文本预览', async () => {
       vi.stubGlobal(
         'fetch',

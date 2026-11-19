@@ -4,12 +4,15 @@ const fixture = '/tests/browser/data-audit-fixture.html';
 
 test('真实图片在固有、单边、双边及受限宽度下保持正确内容尺寸', async ({ page }) => {
   await page.goto(fixture);
-  await expect(page.locator('#pictures .ex-image--loaded')).toHaveCount(5);
+  await expect(page.locator('#pictures .ex-image--loaded')).toHaveCount(8);
   for (const [id, width, height] of [
     ['natural', 160, 80],
     ['width', 80, 40],
     ['height', 80, 40],
     ['both', 80, 60],
+    ['class-width', 320, 160],
+    ['class-height', 80, 40],
+    ['class-both', 320, 40],
     ['constrained', 80, 40],
   ] as const) {
     const bounds = await page.locator(`#${id} img`).boundingBox();

@@ -501,7 +501,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, nextTick, ref, watch } from 'vue';
+import { computed, nextTick, ref, watch, watchSyncEffect } from 'vue';
 import type { SelectOption, SelectValue } from '../select/types';
 import type { TreeNode } from '../tree/types';
 import type {
@@ -535,6 +535,7 @@ import {
   flattenFileEntries,
   getFileItemIcon,
   getFileItemTimestamp,
+  normalizeFileListKeyword,
   normalizeFileListPageSize,
 } from './file-list-utils';
 import type { FileEntry } from './file-list-utils';
@@ -689,14 +690,45 @@ const normalizedCurrentPage = computed(() =>
 );
 
 const criteria = computed(() => ({
-  search: effectiveSearchValue.value,
+  search: normalizeFileListKeyword(effectiveSearchValue.value, locale.value),
   field: effectiveSortField.value,
   order: effectiveSortOrder.value,
   view: effectiveViewMode.value,
 }));
 type Criterion = keyof typeof criteria.value;
-const requestedAtPage = new Map<Criterion, number>();
+const criterionStates = {
+  search: searchState,
+  field: sortFieldState,
+  order: sortOrderState,
+  view: viewState,
+};
+const requests = new Map<Criterion, Map<string, number>>();
 let pageRevision = 0;
+
+function rememberCriterion(key: Criterion, value: string): void {
+  if (!criterionStates[key].isControlled.value || criteria.value[key] === value) return;
+  const pending = requests.get(key) ?? new Map<string, number>();
+  pending.delete(value);
+  pending.set(value, pageRevision);
+  requests.set(key, pending);
+}
+
+function shouldResetPage(key: Criterion, value: string): boolean {
+  const pending = requests.get(key);
+  if (!pending) return true;
+  // 先匹配可识别的确认。父级转换为全新值时，将其关联到最近的请求。
+  const matched = pending.has(value) ? value : [...pending.keys()].at(-1)!;
+  const revision = pending.get(matched);
+  pending.delete(matched);
+  if (pending.size === 0) requests.delete(key);
+  return revision === pageRevision;
+}
+
+watchSyncEffect(() => {
+  for (const key of Object.keys(criterionStates) as Criterion[]) {
+    if (!criterionStates[key].isControlled.value) requests.delete(key);
+  }
+});
 watch(
   [() => pageState.value.value, totalPages, () => props.showPagination, criteria],
   ([page, pages, paginationVisible, current], [previousPage, , , previous]) => {
@@ -705,9 +737,7 @@ watch(
     let reset = false;
     for (const key of Object.keys(current) as Criterion[]) {
       if (!previous || previous[key] === current[key]) continue;
-      // 较晚的翻页操作优先于先前尚未确认的筛选请求。
-      if ((requestedAtPage.get(key) ?? pageRevision) === pageRevision) reset = true;
-      requestedAtPage.delete(key);
+      if (shouldResetPage(key, current[key])) reset = true;
     }
     if (!paginationVisible) return;
     const normalized = reset && !pageChanged ? 1 : clampFileListPage(page, pages);
@@ -814,25 +844,25 @@ const formatType = (file: FileItem): string => {
 
 const handleSearchInput = (value: string | number) => {
   const nextValue = String(value);
-  requestedAtPage.set('search', pageRevision);
+  rememberCriterion('search', normalizeFileListKeyword(nextValue, locale.value));
   searchState.request(nextValue);
   emit('search', nextValue);
 };
 const handleSortFieldChange = (value: SelectValue) => {
   if (!isSortField(value)) return;
-  requestedAtPage.set('field', pageRevision);
+  rememberCriterion('field', value);
   sortFieldState.request(value);
   emit('sort', value, effectiveSortOrder.value);
 };
 const toggleSortOrder = () => {
   const nextOrder: SortOrder = effectiveSortOrder.value === 'asc' ? 'desc' : 'asc';
-  requestedAtPage.set('order', pageRevision);
+  rememberCriterion('order', nextOrder);
   sortOrderState.request(nextOrder);
   emit('sort', effectiveSortField.value, nextOrder);
 };
 const changeViewMode = (mode: ViewMode) => {
   if (mode === effectiveViewMode.value) return;
-  requestedAtPage.set('view', pageRevision);
+  rememberCriterion('view', mode);
   viewState.request(mode);
 };
 const handlePageRequest = (page: number) => {

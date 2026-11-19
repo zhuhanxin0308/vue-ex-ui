@@ -36,6 +36,9 @@ createApp({
         { id: 'width', width: 82 },
         { id: 'height', height: 42 },
         { id: 'both', width: 82, height: 62 },
+        { id: 'class-width', class: 'poster-wide' },
+        { id: 'class-height', class: 'poster-tall' },
+        { id: 'class-both', class: 'poster-wide poster-tall' },
       ].map(props => h(ExImage, { ...props, src: picture, alt: props.id, lazy: false })),
       h(
         'div',

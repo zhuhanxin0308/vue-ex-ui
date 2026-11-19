@@ -133,6 +133,9 @@ const createEntryComparator = (
   }
 };
 
+export const normalizeFileListKeyword = (value: string, locale: string): string =>
+  value.trim().toLocaleLowerCase(locale);
+
 /** 递归稳定排序，并按视图需要决定后代命中时是否保留祖先。 */
 export const filterAndSortFileEntries = (
   entries: readonly FileEntry[],
@@ -143,7 +146,7 @@ export const filterAndSortFileEntries = (
     sensitivity: 'base',
   });
   const compare = createEntryComparator(query.field, query.order, collator);
-  const keyword = query.keyword.trim().toLocaleLowerCase(query.locale);
+  const keyword = normalizeFileListKeyword(query.keyword, query.locale);
 
   const sortRecursively = (items: readonly FileEntry[]): FileEntry[] =>
     items
