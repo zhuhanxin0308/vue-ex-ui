@@ -279,7 +279,8 @@ const trackStyles = computed(() => {
 
   if (effect.value === 'slide') {
     if (direction.value === 'horizontal') {
-      styles.transform = `translateX(-${currentIndex.value * 100}%)`;
+      styles['--ex-carousel-ltr-transform'] = `translateX(-${currentIndex.value * 100}%)`;
+      styles['--ex-carousel-rtl-transform'] = `translateX(${currentIndex.value * 100}%)`;
       styles.transition = prefersReducedMotion.value
         ? 'none'
         : 'transform 0.3s cubic-bezier(0.4, 0, 0.2, 1)';
@@ -344,11 +345,14 @@ const prev = () => {
   goTo(prevIndex);
 };
 
+const isRtl = () => carouselRef.value && getComputedStyle(carouselRef.value).direction === 'rtl';
+
 const handleKeydown = (event: KeyboardEvent) => {
   if (event.defaultPrevented || isComposingKeyboardEvent(event)) return;
   const horizontal = direction.value === 'horizontal';
-  if (event.key === (horizontal ? 'ArrowLeft' : 'ArrowUp')) prev();
-  else if (event.key === (horizontal ? 'ArrowRight' : 'ArrowDown')) next();
+  const rtl = horizontal && isRtl();
+  if (event.key === (horizontal ? (rtl ? 'ArrowRight' : 'ArrowLeft') : 'ArrowUp')) prev();
+  else if (event.key === (horizontal ? (rtl ? 'ArrowLeft' : 'ArrowRight') : 'ArrowDown')) next();
   else if (event.key === 'Home') goTo(0);
   else if (event.key === 'End') goTo(itemCount.value - 1);
   else return;
@@ -484,7 +488,7 @@ const handleTouchEnd = (e: TouchEvent) => {
 
   if (direction.value === 'horizontal') {
     if (Math.abs(deltaX) > SWIPE_TRIGGER_THRESHOLD_PX) {
-      if (deltaX > 0) {
+      if (isRtl() ? deltaX < 0 : deltaX > 0) {
         prev();
       } else {
         next();

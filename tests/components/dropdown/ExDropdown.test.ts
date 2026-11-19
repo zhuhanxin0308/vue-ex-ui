@@ -241,6 +241,34 @@ describe('ExDropdown', () => {
     ).toContain('删除');
   });
 
+  it('ArrowUp 首次打开或重复打开均聚焦最后一个可用项', async () => {
+    mountDropdown({ items: [...items, { key: 'end', label: '不可用', disabled: true }] });
+    for (let i = 0; i < 2; i++) {
+      await triggerButton().trigger('keydown', { key: 'ArrowUp' });
+      await flushPromises();
+      expect(menuElement().getAttribute('aria-activedescendant')).toBe(menuItems()[2]!.id);
+      expect(document.activeElement).toBe(menuElement());
+      menuElement().dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+      await flushPromises();
+      expect(document.activeElement).toBe(triggerButton().element);
+    }
+  });
+
+  it('同轮打开请求以最后的方向键为准，空菜单只聚焦容器', async () => {
+    mountDropdown();
+    for (const key of ['ArrowDown', 'ArrowUp']) {
+      triggerButton().element.dispatchEvent(new KeyboardEvent('keydown', { key, bubbles: true }));
+    }
+    await flushPromises();
+    expect(menuElement().getAttribute('aria-activedescendant')).toBe(menuItems()[2]!.id);
+    exposed().hide();
+    await wrapper!.setProps({ items: [] });
+    await triggerButton().trigger('keydown', { key: 'ArrowUp' });
+    await flushPromises();
+    expect(document.activeElement).toBe(menuElement());
+    expect(menuElement().hasAttribute('aria-activedescendant')).toBe(false);
+  });
+
   it('Enter 选择高亮数据项并将焦点归还触发器', async () => {
     mountDropdown();
     await triggerButton().trigger('keydown', { key: 'ArrowDown' });

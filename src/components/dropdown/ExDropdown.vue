@@ -147,7 +147,8 @@ let hoverTimer: number | undefined;
 let positionFrame: number | undefined;
 let listenersAttached = false;
 let resizeObserver: ResizeObserver | null = null;
-let focusMenuWhenOpened = false;
+type MenuBoundary = 'first' | 'last';
+let pendingFocus: MenuBoundary | undefined;
 let restoreFocusWhenClosed = false;
 let lastTriggerElement: HTMLElement | null = null;
 let disposed = false;
@@ -273,16 +274,23 @@ const moveActiveItem = (step: 1 | -1) => {
   activateItem(items[nextIndex]!.id);
 };
 
-const focusMenu = () => {
-  activateBoundaryItem('first');
+const focusPendingBoundary = () => {
+  if (!pendingFocus || disposed || !overlayActive.value) return;
+  activateBoundaryItem(pendingFocus);
+  pendingFocus = undefined;
   menuRef.value?.focus({ preventScroll: true });
 };
 
-const requestShow = (focus = false) => {
-  focusMenuWhenOpened ||= focus;
-  if (!requestVisible(true) && isVisible.value && focus) {
-    nextTick(focusMenu);
+const requestShow = (boundary?: MenuBoundary) => {
+  if (isVisible.value) {
+    if (boundary) {
+      pendingFocus = boundary;
+      nextTick(focusPendingBoundary);
+    }
+    return;
   }
+  pendingFocus = boundary;
+  requestVisible(true);
 };
 
 const requestHide = (restoreTriggerFocus = false) => {
@@ -420,7 +428,7 @@ const scheduleHoverAction = (action: () => void, delay: number) => {
 const handleTriggerEnter = () => {
   if (normalizedTrigger.value !== 'hover' || props.disabled) return;
   contextPoint.value = null;
-  scheduleHoverAction(() => requestShow(false), finiteDelay(props.showDelay, 0));
+  scheduleHoverAction(() => requestShow(), finiteDelay(props.showDelay, 0));
 };
 
 const handleTriggerLeave = () => {
@@ -442,7 +450,7 @@ const handleTriggerClick = (event: MouseEvent) => {
   rememberTriggerElement(event);
   contextPoint.value = null;
   if (isVisible.value) requestHide(false);
-  else requestShow(true);
+  else requestShow('first');
 };
 
 const handleContextMenu = (event: MouseEvent) => {
@@ -450,7 +458,7 @@ const handleContextMenu = (event: MouseEvent) => {
   event.preventDefault();
   rememberTriggerElement(event);
   contextPoint.value = { x: event.clientX, y: event.clientY };
-  requestShow(true);
+  requestShow('first');
 };
 
 const handleTriggerKeydown = (event: KeyboardEvent) => {
@@ -459,11 +467,7 @@ const handleTriggerKeydown = (event: KeyboardEvent) => {
   event.preventDefault();
   rememberTriggerElement(event);
   contextPoint.value = null;
-  focusMenuWhenOpened = true;
-  requestShow(true);
-  nextTick(() => {
-    if (event.key === 'ArrowUp') activateBoundaryItem('last');
-  });
+  requestShow(event.key === 'ArrowUp' ? 'last' : 'first');
 };
 
 const handleMenuKeydown = (event: KeyboardEvent) => {
@@ -560,7 +564,7 @@ watch(
 watch(normalizedTrigger, () => {
   clearHoverTimer();
   contextPoint.value = null;
-  focusMenuWhenOpened = false;
+  pendingFocus = undefined;
   restoreFocusWhenClosed = false;
   if (overlayActive.value) schedulePosition();
 });
@@ -577,6 +581,7 @@ watch(
   overlayActive,
   visible => {
     if (!visible) {
+      pendingFocus = undefined;
       detachPositionListeners();
       contextPoint.value = null;
       if (restoreFocusWhenClosed) nextTick(focusTrigger);
@@ -587,8 +592,7 @@ watch(
       if (disposed || !overlayActive.value) return;
       attachPositionListeners();
       updatePosition();
-      if (focusMenuWhenOpened) focusMenu();
-      focusMenuWhenOpened = false;
+      focusPendingBoundary();
     });
   },
   { immediate: true }
@@ -626,7 +630,7 @@ watch(
 
 const show = () => {
   contextPoint.value = null;
-  requestShow(false);
+  requestShow();
 };
 const hide = () => requestHide(false);
 const getElement = () => dropdownRef.value ?? null;

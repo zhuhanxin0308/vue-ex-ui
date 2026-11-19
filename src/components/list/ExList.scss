@@ -60,6 +60,7 @@
 }
 
 .ex-list__item-surface {
+  box-sizing: border-box;
   position: relative;
   z-index: 1;
   display: block;

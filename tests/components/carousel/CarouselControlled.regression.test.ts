@@ -14,6 +14,17 @@ const slots = {
 };
 
 describe('Carousel 严格受控', () => {
+  it('RTL 模式物理左键和向右滑动均请求逻辑下一页', async () => {
+    const wrapper = mount(ExCarousel, { props: { modelValue: 1, autoplay: false }, slots });
+    wrappers.push(wrapper);
+    wrapper.element.style.direction = 'rtl';
+    await wrapper.trigger('keydown', { key: 'ArrowLeft' });
+    const track = wrapper.get('.ex-carousel__track');
+    await track.trigger('touchstart', { touches: [{ clientX: 0, clientY: 5 }] });
+    await track.trigger('touchend', { changedTouches: [{ clientX: 100, clientY: 5 }] });
+    expect(wrapper.emitted('update:modelValue')).toEqual([[2], [2]]);
+  });
+
   it('聚焦轮播后按方向切换或跳至首尾，内部控件独立处理按键', async () => {
     const wrapper = mount(ExCarousel, {
       props: {

@@ -54,6 +54,14 @@
 
   // 水平滑动
   &--horizontal.ex-carousel--slide {
+    .ex-carousel__track {
+      transform: var(--ex-carousel-ltr-transform);
+    }
+
+    &:dir(rtl) .ex-carousel__track {
+      transform: var(--ex-carousel-rtl-transform);
+    }
+
     :deep(.ex-carousel-item) {
       flex-shrink: 0;
       width: 100%;
@@ -143,11 +151,11 @@
     }
 
     &--prev {
-      left: 16px;
+      inset-inline-start: 16px;
     }
 
     &--next {
-      right: 16px;
+      inset-inline-end: 16px;
     }
 
     &--disabled {
@@ -159,6 +167,10 @@
     img {
       display: block;
     }
+  }
+
+  &:dir(rtl) &__arrow :deep(.ex-icon) {
+    transform: scaleX(-1);
   }
 
   // 指示器
@@ -209,6 +221,10 @@
 
   &__indicator {
     padding: 4px;
+    display: grid;
+    place-items: center;
+    min-width: var(--ex-button-touch-target, 44px);
+    min-height: var(--ex-button-touch-target, 44px);
     background: transparent;
     border: none;
     cursor: pointer;
@@ -257,11 +273,11 @@
       height: 40px;
 
       &--prev {
-        left: 8px;
+        inset-inline-start: 8px;
       }
 
       &--next {
-        right: 8px;
+        inset-inline-end: 8px;
       }
 
       img {
@@ -271,9 +287,12 @@
     }
 
     &__indicators {
-      &--bottom,
-      &--top {
+      &--bottom {
         bottom: 8px;
+      }
+
+      &--top {
+        top: 8px;
       }
 
       &--left {

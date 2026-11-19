@@ -48,6 +48,7 @@ let scrollContainer: HTMLElement | Window | null = null;
 let animationTimer: ReturnType<typeof setTimeout> | null = null;
 let animating = false;
 let mounted = false;
+let titleObserver: ResizeObserver | undefined;
 const SCROLL_SETTLE_DELAY = 500;
 
 const resolveTarget = (href: string): HTMLElement | null => {
@@ -188,6 +189,7 @@ const handleLinkClick = (item: AnchorItem): void => {
 const updateLink = (element: HTMLElement, href: string, title: string): void => {
   const items = [...links.value];
   const index = items.findIndex(link => link.element === element);
+  if (index === -1) titleObserver?.observe(element);
   items[index === -1 ? items.length : index] = { element, href, title };
   links.value = items;
   if (!mounted) return;
@@ -197,6 +199,7 @@ const updateLink = (element: HTMLElement, href: string, title: string): void => 
 };
 
 const unregisterLink = (element: HTMLElement): void => {
+  titleObserver?.unobserve(element);
   links.value = links.value.filter(link => link.element !== element);
   if (mounted && animating && activeElement.value === element) {
     clearAnimationTimer();
@@ -231,6 +234,11 @@ watch([() => props.offsetTop, () => props.targetOffset, () => props.bounds], han
 
 onMounted(() => {
   mounted = true;
+  if (typeof ResizeObserver !== 'undefined') {
+    titleObserver = new ResizeObserver(() => void updateInkPosition());
+    links.value.forEach(link => titleObserver?.observe(link.element));
+    if (anchorRef.value) titleObserver.observe(anchorRef.value);
+  }
   watch(
     () => props.container() ?? null,
     container => {
@@ -247,7 +255,10 @@ onMounted(() => {
   );
   // 包装组件内部可独立重排链接，重排时也需校准等高目标。
   if (anchorRef.value && typeof MutationObserver !== 'undefined') {
-    const observer = new MutationObserver(handleScroll);
+    const observer = new MutationObserver(() => {
+      if (animating) void updateInkPosition();
+      else handleScroll();
+    });
     observer.observe(anchorRef.value, { childList: true, subtree: true });
     onBeforeUnmount(() => observer.disconnect());
   }
@@ -255,6 +266,7 @@ onMounted(() => {
 
 onBeforeUnmount(() => {
   mounted = false;
+  titleObserver?.disconnect();
   removeListeners();
   clearAnimationTimer();
 });

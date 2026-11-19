@@ -301,6 +301,36 @@ describe('ExSubMenu', () => {
     expect(title.attributes('aria-expanded')).toBe('false');
   });
 
+  it.each(['inline', 'vertical'] as const)('%s 的方向键可抵达全部同级分组', async mode => {
+    const wrapper = track(
+      mount(ExMenu, {
+        attachTo: document.body,
+        props: {
+          mode,
+          items: ['A', '禁用', 'B', 'C'].map(key => ({
+            key,
+            label: key,
+            disabled: key === '禁用',
+            children: [{ key: key + '1', label: key + '1' }],
+          })),
+        },
+      })
+    );
+    const titles = wrapper.findAll('.ex-submenu__title');
+    await titles[0]!.trigger('keydown', { key: 'ArrowDown' });
+    expect(document.activeElement).toBe(titles[2]!.element);
+    await titles[2]!.trigger('keydown', { key: 'ArrowRight' });
+    await nextTick();
+    expect((document.activeElement as HTMLElement).dataset.menuKey).toBe('B1');
+    document.activeElement!.dispatchEvent(
+      new KeyboardEvent('keydown', { key: 'ArrowLeft', bubbles: true })
+    );
+    await nextTick();
+    expect(document.activeElement).toBe(titles[2]!.element);
+    await titles[2]!.trigger('keydown', { key: 'ArrowUp' });
+    expect(document.activeElement).toBe(titles[0]!.element);
+  });
+
   it('水平标题 ArrowRight 移到下一同级项而不是错误打开子菜单', async () => {
     const wrapper = track(
       mount(ExMenu, {

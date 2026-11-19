@@ -190,7 +190,7 @@
         @change="handleSizeChange"
       >
         <option
-          v-for="size in pageSizeOptions"
+          v-for="size in visiblePageSizes"
           :key="size"
           :value="size"
         >
@@ -270,6 +270,11 @@ const sizeState = useControllableState<number>({
   defaultValue: 10,
 });
 const currentPageSize = computed(() => normalizePageSize(sizeState.value.value));
+const visiblePageSizes = computed(() =>
+  props.pageSizeOptions.includes(currentPageSize.value)
+    ? props.pageSizeOptions
+    : [currentPageSize.value, ...props.pageSizeOptions]
+);
 
 // 计算总页数
 const totalPages = computed(() => {

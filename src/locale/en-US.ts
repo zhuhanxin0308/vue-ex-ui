@@ -483,6 +483,7 @@ const enUS = {
 
   // Tabs
   tabs: {
+    selectTab: 'Select tab',
     add: 'Add',
     close: 'Close',
     more: 'More',

@@ -44,7 +44,9 @@
   color: var(--ex-color-text-primary);
   background-color: var(--ex-color-bg-primary);
   background-image: var(--ex-gradient-bg);
-  scroll-behavior: smooth;
+  @media (prefers-reduced-motion: no-preference) {
+    scroll-behavior: smooth;
+  }
   overflow-x: auto;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;

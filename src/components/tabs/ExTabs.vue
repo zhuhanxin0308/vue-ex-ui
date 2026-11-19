@@ -5,8 +5,14 @@
     :style="tabsStyles"
   >
     <!-- 标签页导航 -->
-    <div :class="`ex-tabs__nav-wrap ex-tabs__nav-wrap--${position}`">
-      <div class="ex-tabs__nav-scroll">
+    <div
+      ref="navWrapRef"
+      :class="`ex-tabs__nav-wrap ex-tabs__nav-wrap--${position}`"
+    >
+      <div
+        ref="scrollRef"
+        class="ex-tabs__nav-scroll"
+      >
         <div
           ref="navRef"
           class="ex-tabs__nav"
@@ -90,6 +96,38 @@
           ></div>
         </div>
       </div>
+      <label
+        v-if="hasOverflow"
+        class="ex-tabs__overflow"
+      >
+        {{ t('more') }}
+        <ExIcon
+          icon="arrow-down-s-line"
+          :size="16"
+          aria-hidden="true"
+        />
+        <select
+          class="ex-tabs__overflow-select"
+          :aria-label="t('selectTab')"
+          @change="selectOverflowTab"
+        >
+          <option
+            value=""
+            disabled
+            selected
+          >
+            {{ t('selectTab') }}
+          </option>
+          <option
+            v-for="(pane, index) in panes"
+            :key="pane.name"
+            :value="index"
+            :disabled="pane.disabled"
+          >
+            {{ pane.label || pane.name }}
+          </option>
+        </select>
+      </label>
     </div>
 
     <!-- 标签页内容 -->
@@ -149,6 +187,9 @@ const { t } = useLocale('tabs');
 
 const tabsRef = ref<HTMLDivElement>();
 const navRef = ref<HTMLDivElement>();
+const navWrapRef = ref<HTMLDivElement>();
+const scrollRef = ref<HTMLDivElement>();
+const hasOverflow = ref(false);
 const panelsRef = ref<HTMLDivElement>();
 const tabsInstance = getCurrentInstance();
 const registeredPanes = shallowRef<Array<{ pane: PaneInfo; instance: ComponentInternalInstance }>>(
@@ -363,11 +404,11 @@ const indicatorStyle = ref({});
 
 // 更新指示器位置
 const updateIndicator = async () => {
-  if (props.type !== 'line' || !navRef.value) return;
-
   await nextTick();
 
-  if (isTabsUnmounting || !navRef.value) return;
+  if (isTabsUnmounting || !navRef.value || !navWrapRef.value || !scrollRef.value) return;
+  const isVertical = props.position === 'left' || props.position === 'right';
+  hasOverflow.value = !isVertical && navRef.value.scrollWidth > navWrapRef.value.clientWidth;
 
   const activeTabEl = navRef.value.querySelector('.ex-tabs__tab--active') as HTMLElement;
   if (!activeTabEl) {
@@ -375,7 +416,16 @@ const updateIndicator = async () => {
     return;
   }
 
-  const isVertical = props.position === 'left' || props.position === 'right';
+  if (hasOverflow.value) {
+    // 等待溢出选单占位完成，仅读写导航区域，不带动业务页面。
+    await nextTick();
+    if (!scrollRef.value || !navRef.value?.contains(activeTabEl)) return;
+    const viewport = scrollRef.value.getBoundingClientRect();
+    const item = activeTabEl.getBoundingClientRect();
+    if (item.left < viewport.left) scrollRef.value.scrollLeft += item.left - viewport.left;
+    else if (item.right > viewport.right) scrollRef.value.scrollLeft += item.right - viewport.right;
+  }
+  if (props.type !== 'line') return;
   const activeTabRect = activeTabEl.getBoundingClientRect();
   const navRect = navRef.value.getBoundingClientRect();
   // offsetLeft/offsetTop 只相对于最近的定位父级，标签项本身有定位样式时会始终得到局部坐标。
@@ -398,7 +448,7 @@ const updateIndicator = async () => {
 };
 
 // 事件处理
-const handleTabClick = (pane: PaneInfo, event: MouseEvent | KeyboardEvent) => {
+const handleTabClick = (pane: PaneInfo, event: Event) => {
   if (pane.disabled) return;
 
   if (pane.name !== activeTab.value) {
@@ -468,6 +518,13 @@ const handleTabAdd = () => {
   emit('tab-add');
 };
 
+const selectOverflowTab = (event: Event) => {
+  const select = event.currentTarget as HTMLSelectElement;
+  const pane = panes.value[Number(select.value)];
+  select.value = '';
+  if (pane && !pane.disabled) handleTabClick(pane, event);
+};
+
 onMounted(() =>
   watch(activeTab, () => {
     updateIndicator();
@@ -519,6 +576,7 @@ onMounted(() => {
   if (typeof ResizeObserver !== 'undefined' && navRef.value) {
     resizeObserver = new ResizeObserver(() => updateIndicator());
     resizeObserver.observe(navRef.value);
+    if (navWrapRef.value) resizeObserver.observe(navWrapRef.value);
   }
   if (typeof MutationObserver !== 'undefined' && panelsRef.value) {
     paneOrderObserver = new MutationObserver(readWrappedPositions);
