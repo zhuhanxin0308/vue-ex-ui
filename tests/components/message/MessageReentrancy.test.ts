@@ -40,6 +40,26 @@ describe('Message 服务同步回调重入', () => {
     expect(contents()).toEqual(['C', 'D']);
   });
 
+  it('回调合并尚未挂载的新消息时保留最新计时和全部关闭通知', async () => {
+    vi.useFakeTimers();
+    try {
+      const firstClosed = vi.fn();
+      const groupedClosed = vi.fn();
+      service.info({
+        content: 'A',
+        onClose: () =>
+          service.info({ content: 'C', grouping: true, duration: 20, onClose: groupedClosed }),
+      });
+      service.info({ content: 'C', grouping: true, duration: 1000, onClose: firstClosed });
+      await vi.advanceTimersByTimeAsync(20);
+      expect(firstClosed).toHaveBeenCalledOnce();
+      expect(groupedClosed).toHaveBeenCalledOnce();
+    } finally {
+      service.closeAll();
+      vi.useRealTimers();
+    }
+  });
+
   it('淘汰回调异常会撤销未提交的外层请求，不遗留记录或宿主', () => {
     const failure = new Error('业务关闭失败');
     service.info({
@@ -113,5 +133,73 @@ describe('Message 服务同步回调重入', () => {
     app.unmount();
     expect(handler.mock.calls.map(([error]) => error)).toEqual([failure]);
     expect(document.querySelector('.ex-message-container')).toBeNull();
+  });
+
+  it.each(['App', 'ConfigProvider'])('%s 已释放的服务拒绝子组件卸载后的重开', scope => {
+    let owned!: MessageService;
+    const handler = vi.fn();
+    const Page = defineComponent(() => {
+      owned = useMessageService();
+      onUnmounted(() => owned.info('子组件卸载提示'));
+      return () => h('main');
+    });
+    const app = createApp({
+      render: () => (scope === 'App' ? h(Page) : h(ExConfigProvider, {}, () => h(Page))),
+    });
+    app.use(ExMessage);
+    app.config.errorHandler = handler;
+    const root = document.createElement('div');
+    app.mount(root);
+    app.unmount();
+
+    expect(root.childElementCount).toBe(0);
+    expect(document.querySelector('.ex-message-container')).toBeNull();
+    expect(handler.mock.calls[0]?.[0]).toMatchObject({
+      message: expect.stringContaining('已释放'),
+    });
+    expect(() => owned.info('过期引用')).toThrow(/已释放/);
+  });
+
+  it('托管释放后也拒绝关闭回调排入微任务的重开', async () => {
+    let owned!: MessageService;
+    let delayed!: Promise<void>;
+    const Page = defineComponent(() => {
+      owned = useMessageService();
+      return () => h('main');
+    });
+    const app = createApp({ render: () => h(ExConfigProvider, {}, () => h(Page)) });
+    const root = document.createElement('div');
+    app.mount(root);
+    owned.info({
+      content: '待关闭',
+      duration: 0,
+      onClose: () => {
+        delayed = Promise.resolve().then(() => {
+          expect(() => owned.info('延迟重开')).toThrow(/已释放/);
+        });
+      },
+    });
+    app.unmount();
+    await delayed;
+    expect(document.querySelector('.ex-message-container')).toBeNull();
+  });
+
+  it('Provider 已释放后不能在子组件卸载钩子中首次获取新服务', () => {
+    const Page = defineComponent(() => {
+      onUnmounted(() => useMessageService().info('卸载时首次创建'));
+      return () => h('main');
+    });
+    const app = createApp({ render: () => h(ExConfigProvider, {}, () => h(Page)) });
+    const handler = vi.fn();
+    app.config.errorHandler = handler;
+    const root = document.createElement('div');
+    app.mount(root);
+    app.unmount();
+
+    expect(root.childElementCount).toBe(0);
+    expect(document.querySelector('.ex-message-container')).toBeNull();
+    expect(handler.mock.calls[0]?.[0]).toMatchObject({
+      message: expect.stringContaining('已释放'),
+    });
   });
 });

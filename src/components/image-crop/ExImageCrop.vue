@@ -501,6 +501,7 @@ const loadSource = async (): Promise<void> => {
   isLoading.value = true;
   zoom.value = Math.min(props.maxZoom, Math.max(props.minZoom, 1));
   rotation.value = 0;
+  let phase: 'source' | 'layout' = 'source';
 
   try {
     validateConfiguration();
@@ -511,11 +512,19 @@ const loadSource = async (): Promise<void> => {
     }
 
     resource.value = loaded;
+    phase = 'layout';
     emit('load', { ...loaded.dimension });
     await nextTick();
+    if (generation !== loadGeneration || controller.signal.aborted) return;
     rebuildLayout('initialize');
   } catch (error) {
     if (generation !== loadGeneration || controller.signal.aborted) return;
+    if (phase === 'layout') {
+      // 图片解码成功后，首次画布失败也属于可恢复的布局问题。
+      layout.value = null;
+      reportError(error, 'ENCODE_FAILED', 'layout');
+      return;
+    }
     releaseResource();
     configurationValid.value =
       !(error instanceof ExImageCropError) || error.code !== 'INVALID_CONFIGURATION';
@@ -660,6 +669,7 @@ const crop = (): Promise<CropResult> => {
     return Promise.reject(new ExImageCropError('NOT_READY', '图片尚未准备完成'));
   }
 
+  cropError.value = '';
   const currentResource = resource.value;
   const currentLayout = layout.value;
   const previewArea = cloneArea(cropArea.value);

@@ -497,6 +497,26 @@ describe('ExImageCompress', () => {
     expect(utilityMocks.compressLoadedImage).not.toHaveBeenCalled();
   });
 
+  it('手动压缩等待的同一资源加载失败只发布一次来源错误', async () => {
+    const source = deferred<ImageCompressLoadedResource>();
+    const failure = new ExImageCompressError('LOAD_FAILED', '图片无法解码');
+    utilityMocks.loadImageResource.mockReturnValueOnce(source.promise);
+    const imageCompress = mountCompress({ props: { src: '/broken.png' } });
+    const exposed = imageCompress.vm as unknown as ExImageCompressExposed;
+    const pending = exposed.compress();
+    const rejected = expect(pending).rejects.toBe(failure);
+    source.reject(failure);
+    await rejected;
+    await nextTick();
+
+    expect(imageCompress.emitted('error')).toEqual([[failure]]);
+    expect(imageCompress.get('[role="alert"]').text()).toBe(failure.message);
+    expect(utilityMocks.compressLoadedImage).not.toHaveBeenCalled();
+    exposed.reset();
+    await nextTick();
+    expect(imageCompress.get('[role="alert"]').text()).toBe(failure.message);
+  });
+
   it('reset 清理压缩预览和结果并恢复 props 设置，但保留已加载原图', async () => {
     const resource = createResource('source');
     const result = createResult();

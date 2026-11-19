@@ -213,6 +213,27 @@ describe('ExImageCrop', () => {
     await expect(api.crop()).resolves.toHaveProperty('blob');
   });
 
+  it('首次布局绘制失败保留已解码资源，容器恢复后无需重新加载', async () => {
+    const resource = createResource('large-layout');
+    resourceMocks.loadBrowserImageResource.mockResolvedValueOnce(resource);
+    cropMocks.drawCropPreview.mockImplementationOnce(() => {
+      throw new ExImageCropError('INVALID_DIMENSION', '容器像素超过预算');
+    });
+    const current = await mountCrop();
+    const api = current.vm as unknown as ExImageCropExposed;
+    expect(current.get('[role="alert"]').text()).toBe('容器像素超过预算');
+    expect(resource.dispose).not.toHaveBeenCalled();
+    await expect(api.crop()).rejects.toMatchObject({ code: 'NOT_READY' });
+    resizeCallback?.(
+      [{ contentRect: { width: 400, height: 300 } } as ResizeObserverEntry],
+      {} as ResizeObserver
+    );
+    await nextTick();
+    expect(current.find('[role="alert"]').exists()).toBe(false);
+    expect(resourceMocks.loadBrowserImageResource).toHaveBeenCalledOnce();
+    await expect(api.crop()).resolves.toHaveProperty('blob');
+  });
+
   it('加载一次资源、建立布局并发出不可变尺寸快照', async () => {
     const resource = createResource('loaded');
     resourceMocks.loadBrowserImageResource.mockResolvedValueOnce(resource);
@@ -617,6 +638,24 @@ describe('ExImageCrop', () => {
 
     expect(current.emitted('error')).toEqual([[error]]);
     expect(current.attributes('aria-busy')).toBe('false');
+  });
+
+  it('裁剪失败不会被尺寸变化清除，新的成功裁剪会清除自己的错误', async () => {
+    cropMocks.renderCrop.mockRejectedValueOnce(new ExImageCropError('ENCODE_FAILED', '编码失败'));
+    const current = await mountCrop();
+    await current.get('[data-action="crop"]').trigger('click');
+    await flushPromises();
+    expect(current.get('[role="alert"]').text()).toBe('编码失败');
+    resizeCallback?.(
+      [{ contentRect: { width: 800, height: 600 } } as ResizeObserverEntry],
+      {} as ResizeObserver
+    );
+    await nextTick();
+    expect(current.get('[role="alert"]').text()).toBe('编码失败');
+    await current.get('[data-action="crop"]').trigger('click');
+    await flushPromises();
+    expect(current.find('[role="alert"]').exists()).toBe(false);
+    expect(current.emitted('crop')).toHaveLength(1);
   });
 
   it('未加载完成时 crop 明确拒绝而不是生成空结果', async () => {

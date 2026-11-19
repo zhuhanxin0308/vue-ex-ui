@@ -1,4 +1,4 @@
-import { createVNode, inject, render } from 'vue';
+import { cloneVNode, createVNode, inject, render } from 'vue';
 import type { AppContext, InjectionKey, VNode } from 'vue';
 import { createSharedInjectionKey } from '../../utils/shared-runtime';
 import { useComponentServiceScope, watchServiceZIndex } from '../config-provider/service-scope';
@@ -52,8 +52,12 @@ class MessageClosingAllError extends Error {
 const isReopenRejection = (error: unknown, service: MessageService): boolean =>
   error instanceof MessageClosingAllError && error.service === service;
 
+const disposedServices = new WeakSet<MessageService>();
+
 /** 自动卸载只吸收本服务的重开拒绝，业务回调异常仍交给 Vue 处理。 */
 export function disposeMessageService(service: MessageService): void {
+  // 托管作用域结束后永久撤销创建权限，阻止卸载钩子或微任务使用过期引用重开。
+  disposedServices.add(service);
   try {
     service.closeAll();
   } catch (error) {
@@ -206,6 +210,8 @@ export function createMessageService(appContext?: AppContext): MessageService {
     const options = resolveMessageOptions(input, globalConfig, forcedType);
     assertBrowserEnvironment();
     if (closingAll) throw new MessageClosingAllError(service);
+    if (disposedServices.has(service))
+      throw new Error('Message 服务所属作用域已释放，不能创建消息');
     closeStaleRecords();
 
     const grouped = findGroupedMessage(options);
@@ -258,7 +264,9 @@ export function createMessageService(appContext?: AppContext): MessageService {
           .slice(ordered.indexOf(record) + 1)
           .find(later => later.wrapper.parentNode === container);
         container.insertBefore(wrapper, next?.wrapper ?? null);
-        render(vnode, wrapper);
+        // 预留期间也可能发生分组合并，首次挂载须使用最后一次请求的持续时间。
+        record.vnode = cloneVNode(vnode, { duration: record.options.duration });
+        render(record.vnode, wrapper);
       }
     } catch (error) {
       finalizeRecord(record, false);

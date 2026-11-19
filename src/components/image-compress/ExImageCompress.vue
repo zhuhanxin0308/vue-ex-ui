@@ -474,7 +474,8 @@ const runCompression = async (): Promise<CompressResult> => {
       throw new ExImageCompressError('ABORTED', '图片压缩已取消');
     }
     const normalized = asError(error, t('imageCompress.compressError'));
-    if (!isAbortError(normalized)) {
+    // 来源错误已由加载流程发布；等待它的压缩调用仅保留原始拒绝语义。
+    if (!isAbortError(normalized) && normalized !== sourceError.value) {
       compressionError.value = normalized;
       emit('error', normalized);
     }
