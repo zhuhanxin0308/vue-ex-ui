@@ -51,6 +51,53 @@ describe('ExVerificationCode regressions', () => {
     expect(wrapper.emitted('change')?.at(-1)?.[0]).toBe('1234');
   });
 
+  it.each([true, false])('放宽长度时重新读取父级实际接受的字符：接受截断 %s', async accepted => {
+    const wrapper = mountCode({ length: 6, modelValue: '123456' });
+    await wrapper.setProps({ length: 4 });
+    if (accepted) await wrapper.setProps({ modelValue: '1234' });
+    await wrapper.setProps({ length: 6 });
+    const expected = accepted ? '1234' : '123456';
+    expect(wrapper.get('input').element.value).toBe(expected);
+    const state = wrapper.vm as unknown as VerificationCodeInternalState;
+    expect(state.cells.join('')).toBe(expected);
+    expect(wrapper.emitted('update:modelValue')).toEqual([['1234']]);
+    expect(wrapper.emitted('submit')).toBeUndefined();
+  });
+
+  it('输入模式放宽后显示父级保留的字母', async () => {
+    const wrapper = mountCode({ length: 4, modelValue: '1A2B' });
+    await wrapper.setProps({ inputMode: 'alphanumeric' });
+    expect(wrapper.get('input').element.value).toBe('1A2B');
+    expect(wrapper.emitted('update:modelValue')).toBeUndefined();
+  });
+
+  it.each(['numeric', 'alphanumeric'] as const)(
+    '仅切换 %s 输入约束而不改变验证码时保留待提交任务与光标',
+    async inputMode => {
+      vi.useFakeTimers();
+      const submitDelay = 500;
+      const elapsed = 200;
+      const wrapper = mountCode({
+        length: 4,
+        inputMode,
+        autoSubmit: true,
+        autoSubmitDelay: submitDelay,
+      });
+      const input = wrapper.get<HTMLInputElement>('input');
+      await input.setValue('1234');
+      await input.trigger('keydown', { key: 'Home' });
+      vi.advanceTimersByTime(elapsed);
+      await wrapper.setProps({ inputMode: inputMode === 'numeric' ? 'alphanumeric' : 'numeric' });
+
+      expect(input.element.value).toBe('1234');
+      expect(input.element.selectionStart).toBe(0);
+      expect(wrapper.emitted('complete')).toEqual([['1234']]);
+      vi.advanceTimersByTime(submitDelay - elapsed);
+      await nextTick();
+      expect(wrapper.emitted('submit')).toEqual([['1234']]);
+    }
+  );
+
   it('自动提交等待期间禁用组件会取消提交', async () => {
     vi.useFakeTimers();
     const wrapper = mountCode({ length: 4, autoSubmit: true, autoSubmitDelay: 100 });

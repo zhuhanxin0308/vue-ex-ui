@@ -6,6 +6,9 @@
 // ============================================================================
 
 .ex-slider {
+  // 手柄、刻度和标签共用定位边的中心补偿，避免反向状态各自偏移。
+  --ex-slider-center-x: -50%;
+  --ex-slider-center-y: -50%;
   position: relative;
   display: flex;
   align-items: center;
@@ -39,6 +42,7 @@
 
   // 垂直方向
   &--vertical {
+    --ex-slider-center-y: 50%;
     flex-direction: column;
     width: auto;
     height: 200px;
@@ -63,7 +67,13 @@
     }
   }
 
-  // 反向模式的样式通过 Vue 模板中的内联样式动态设置
+  &--horizontal.ex-slider--reverse {
+    --ex-slider-center-x: 50%;
+  }
+
+  &--vertical.ex-slider--reverse {
+    --ex-slider-center-y: -50%;
+  }
 
   // 尺寸变体
   &--small {
@@ -190,36 +200,36 @@
   // 水平模式下的定位
   .ex-slider--horizontal & {
     top: 50%;
-    transform: translate(-50%, -50%);
+    transform: translate(var(--ex-slider-center-x), var(--ex-slider-center-y));
 
     &:hover {
-      transform: translate(-50%, -50%) scale(1.1);
+      transform: translate(var(--ex-slider-center-x), var(--ex-slider-center-y)) scale(1.1);
     }
 
     &:focus-visible {
-      transform: translate(-50%, -50%) scale(1.15);
+      transform: translate(var(--ex-slider-center-x), var(--ex-slider-center-y)) scale(1.15);
     }
 
     &.is-dragging {
-      transform: translate(-50%, -50%) scale(1.2);
+      transform: translate(var(--ex-slider-center-x), var(--ex-slider-center-y)) scale(1.2);
     }
   }
 
   // 垂直模式下的定位
   .ex-slider--vertical & {
     left: 50%;
-    transform: translate(-50%, 50%);
+    transform: translate(var(--ex-slider-center-x), var(--ex-slider-center-y));
 
     &:hover {
-      transform: translate(-50%, 50%) scale(1.1);
+      transform: translate(var(--ex-slider-center-x), var(--ex-slider-center-y)) scale(1.1);
     }
 
     &:focus-visible {
-      transform: translate(-50%, 50%) scale(1.15);
+      transform: translate(var(--ex-slider-center-x), var(--ex-slider-center-y)) scale(1.15);
     }
 
     &.is-dragging {
-      transform: translate(-50%, 50%) scale(1.2);
+      transform: translate(var(--ex-slider-center-x), var(--ex-slider-center-y)) scale(1.2);
     }
   }
 
@@ -347,13 +357,13 @@
   // 水平模式
   .ex-slider--horizontal & {
     top: 50%;
-    transform: translate(-50%, -50%);
+    transform: translate(var(--ex-slider-center-x), var(--ex-slider-center-y));
   }
 
   // 垂直模式
   .ex-slider--vertical & {
     left: 50%;
-    transform: translate(-50%, 50%);
+    transform: translate(var(--ex-slider-center-x), var(--ex-slider-center-y));
   }
 
   .ex-slider:hover & {
@@ -377,14 +387,14 @@
   // 水平模式
   .ex-slider--horizontal & {
     top: 100%;
-    transform: translateX(-50%);
+    transform: translateX(var(--ex-slider-center-x));
     margin-top: 8px;
   }
 
   // 垂直模式
   .ex-slider--vertical & {
     left: 100%;
-    transform: translateY(50%);
+    transform: translateY(var(--ex-slider-center-y));
     margin-left: 12px;
     margin-top: 0;
   }

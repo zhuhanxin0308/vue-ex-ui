@@ -19,7 +19,7 @@ describe('Rate 未选中图标类名契约', () => {
     expect(icons[0].get('i').classes()).toEqual(['first-star']);
     expect(icons[1].find('svg').exists()).toBe(true);
     expect(icons[2].get('i').classes()).toEqual(['third-star']);
-    expect(icons[2].attributes('style')).toContain('inset(0 50% 0 0)');
+    expect(wrapper.findAll('.ex-rate__star')[2].classes()).toContain('is-half');
     expect(icons[3].find('svg').exists()).toBe(true);
     classes.value[0] = 'changed-star';
     await nextTick();

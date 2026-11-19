@@ -396,6 +396,7 @@ if (checkboxGroupContext && instance) {
   checkboxGroupContext.registerCheckbox(instance.uid, {
     getValue: () => props.value,
     isDisabled: () => currentDisabled.value,
+    isReadonly: () => currentReadonly.value,
   });
 
   onBeforeUnmount(() => {

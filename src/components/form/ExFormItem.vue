@@ -1,5 +1,6 @@
 <template>
   <div
+    ref="itemRef"
     :class="formItemClasses"
     :style="formItemStyles"
     :data-field="prop"
@@ -127,6 +128,7 @@ const { t } = useI18n();
 const formContext = inject(FORM_CONTEXT_INJECTION_KEY, undefined);
 
 // 响应式状态
+const itemRef = ref<HTMLElement>();
 const validateStatus = ref<FormValidateStatus>('');
 const validateMessage = ref('');
 const isValidating = ref(false);
@@ -339,6 +341,9 @@ provideFormItem({
 
 // 表单项上下文
 const formItemContext: FormItemContext = {
+  get element() {
+    return itemRef.value;
+  },
   get prop() {
     return props.prop || '';
   },

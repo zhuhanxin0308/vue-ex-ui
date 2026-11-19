@@ -315,6 +315,8 @@ export interface FormContext {
 // ============================================================================
 
 export interface FormItemContext {
+  /** 当前实例的根元素，用于精确定位同名字段的校验反馈。 */
+  readonly element?: HTMLElement;
   /** 字段名 */
   prop: string;
   /** 表单项属性 */

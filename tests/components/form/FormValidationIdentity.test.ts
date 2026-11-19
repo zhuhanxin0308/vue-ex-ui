@@ -14,6 +14,31 @@ afterEach(() => {
 });
 
 describe('字段校验快照的结构值与调度身份', () => {
+  it('同名字段聚焦实际失败的第一项', async () => {
+    const wrapper = mount(ExForm, {
+      props: { model: { x: '' } },
+      slots: {
+        default: () =>
+          [false, true, true].map((required, index) =>
+            h(ExFormItem, { prop: 'x', rules: [{ required, message: String(index) }] }, () =>
+              h('input')
+            )
+          ),
+      },
+      attachTo: document.body,
+    });
+    wrappers.push(wrapper);
+    const scrolls = wrapper.findAll<HTMLElement>('[data-field]').map(item => {
+      item.element.scrollIntoView = vi.fn();
+      return item.element.scrollIntoView;
+    });
+    const result = await wrapper.vm.validate();
+    expect(result.errors.map(error => error.message)).toEqual(['1', '2']);
+    expect(document.activeElement).toBe(wrapper.findAll('input')[1]!.element);
+    expect(scrolls[1]).toHaveBeenCalledOnce();
+    expect(scrolls[0]).not.toHaveBeenCalled();
+  });
+
   it('内置规则的字符串转换不会改写用于校验身份比较的对象', async () => {
     class Draft {
       cached?: string;

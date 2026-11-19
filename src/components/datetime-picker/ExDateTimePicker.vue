@@ -761,7 +761,7 @@ const selectDate = (date: Date) => {
     return;
   }
 
-  if (!rangeStart.value || rangeEnd.value) {
+  if (!rangeStart.value || rangeEnd.value || isDateDisabled(rangeStart.value)) {
     rangeStart.value = withTime(date, hours.value, minutes.value, seconds.value);
     rangeEnd.value = null;
     hoverDate.value = null;

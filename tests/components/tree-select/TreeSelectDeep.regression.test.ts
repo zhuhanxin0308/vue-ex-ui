@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { mount } from '@vue/test-utils';
 import { h, nextTick } from 'vue';
 import ExTreeSelect from '../../../src/components/tree-select/ExTreeSelect.vue';
@@ -8,6 +8,55 @@ const wrappers: Array<{ unmount(): void }> = [];
 afterEach(() => wrappers.splice(0).forEach(wrapper => wrapper.unmount()));
 
 describe('深层树数据索引和半选状态', () => {
+  it.each([32, 64, 128].flatMap(depth => [false, true].map(expanded => ({ depth, expanded }))))(
+    '重载浅分支时无关 $depth 层深链保持线性访问：展开 $expanded',
+    async ({ depth, expanded }) => {
+      let chain: TreeSelectNode = { value: depth, label: '末叶' };
+      for (let value = depth - 1; value > 0; value--) {
+        chain = { value, label: String(value), children: [chain] };
+      }
+      const loader = vi.fn(async () => []);
+      const wrapper = mount(ExTreeSelect, {
+        props: {
+          data: [{ value: 'target', label: '重载目标', isLeaf: false }, chain],
+          loadData: loader,
+          filterable: true,
+          teleported: false,
+        },
+      });
+      wrappers.push(wrapper);
+      await wrapper.get('[role="combobox"]').trigger('click');
+      if (expanded) await wrapper.get('.ex-tree-select__search input').setValue('末叶');
+      expect(loader).not.toHaveBeenCalled();
+      const originalGet = WeakMap.prototype.get;
+      let parentReads = 0;
+      const spy = vi.spyOn(WeakMap.prototype, 'get').mockImplementation(function (
+        this: WeakMap<object, unknown>,
+        key: WeakKey
+      ) {
+        // 只计索引条目的父链访问，排除 Vue 自身的响应式缓存读取。
+        if (
+          typeof key === 'object' &&
+          key &&
+          Object.hasOwn(key, 'path') &&
+          Object.hasOwn(key, 'source')
+        ) {
+          if (typeof (key as { node: TreeSelectNode }).node.value === 'number') parentReads++;
+        }
+        return originalGet.call(this, key);
+      });
+      try {
+        expect(await wrapper.vm.reloadNode('target')).toBe(true);
+        await nextTick();
+        expect(loader).toHaveBeenCalledOnce();
+        expect(wrapper.emitted('load')).toHaveLength(1);
+        expect(parentReads).toBeLessThanOrEqual(depth * 2);
+      } finally {
+        spy.mockRestore();
+      }
+    }
+  );
+
   it('一万层树初始化和已选节点显示不依赖调用栈深度', () => {
     let node: TreeSelectNode = { value: 9999, label: '末级节点' };
     for (let value = 9998; value >= 0; value--)
