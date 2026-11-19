@@ -26,7 +26,7 @@
         :aria-disabled="currentDisabled"
         :aria-readonly="currentReadonly"
         :aria-describedby="ariaDescribedBy"
-        :aria-invalid="showErrorMessage"
+        :aria-invalid="hasErrorState"
         @click="handleReadonlyGuard"
         @change="handleChange"
         @focus="handleFocus"
@@ -50,7 +50,7 @@
         :aria-disabled="currentDisabled"
         :aria-readonly="currentReadonly"
         :aria-describedby="ariaDescribedBy"
-        :aria-invalid="showErrorMessage"
+        :aria-invalid="hasErrorState"
         @click="handleReadonlyGuard"
         @change="handleChange"
         @focus="handleFocus"
@@ -81,7 +81,7 @@
     >
       <!-- 帮助文本 -->
       <div
-        v-if="helpText || $slots.help"
+        v-if="hasHelp"
         :id="`${radioId}-help`"
         class="ex-radio__help"
       >
@@ -114,18 +114,17 @@
 </template>
 
 <script lang="ts" setup>
-import {
-  computed,
-  ref,
-  watch,
-  useSlots,
-  inject,
-  useAttrs,
-  nextTick,
-  onMounted,
-  onBeforeUnmount,
-} from 'vue';
-import type { ExRadioProps, ExRadioEmits, ExRadioSlots, ExRadioInstance } from './types';
+import { computed, ref, watch, useSlots, inject, useAttrs, onMounted, onBeforeUnmount } from 'vue';
+import type {
+  ExRadioProps,
+  ExRadioEmits,
+  ExRadioSlots,
+  ExRadioInstance,
+  RadioValue,
+} from './types';
+import { useControllableState } from '../../composables/useControllableState';
+import { useRenderComputed } from '../../composables/useRenderComputed';
+import { hasRenderableContent } from '../../utils/vnode';
 import ExIcon from '../icon/ExIcon.vue';
 import { useI18n } from '../../locale';
 import { generateId } from '../../utils/id';
@@ -138,6 +137,7 @@ defineOptions({
 });
 
 const props = withDefaults(defineProps<ExRadioProps>(), {
+  modelValue: undefined,
   size: undefined, // 改为 undefined，让 useComponentSize 处理默认值
   status: 'default',
   disabled: false,
@@ -180,9 +180,14 @@ watch(
 );
 
 // 计算属性
+const standalone = useControllableState<RadioValue | undefined>({
+  controlledValue: () => props.modelValue,
+  defaultValue: undefined,
+  resetRevision: () => formItem?.resetRevision?.value,
+});
 const radioValue = computed({
   get: () => {
-    return radioGroupContext ? radioGroupContext.modelValue.value : props.modelValue;
+    return radioGroupContext ? radioGroupContext.modelValue.value : standalone.value.value;
   },
   set: value => {
     if (currentDisabled.value || currentReadonly.value) return;
@@ -190,6 +195,7 @@ const radioValue = computed({
       if (radioGroupContext) {
         radioGroupContext.updateValue(value);
       } else {
+        standalone.request(value);
         emit('update:modelValue', value);
       }
     }
@@ -208,16 +214,23 @@ let unregisterNativeRadio: (() => void) | undefined;
 onMounted(() => {
   unregisterRadio = radioGroupContext?.registerRadio(restoreNativeState);
   if (radioRef.value)
-    unregisterNativeRadio = registerNativeRadio(radioRef.value, restoreNativeState);
+    unregisterNativeRadio = registerNativeRadio(radioRef.value, {
+      isControlled: () => Boolean(radioGroupContext) || standalone.isControlled.value,
+      isChecked: () => isChecked.value,
+      clearSelection: () => standalone.request(undefined),
+    });
 });
 onBeforeUnmount(() => {
   unregisterRadio?.();
   unregisterNativeRadio?.();
 });
 
-const hasLabel = computed(() => {
-  return Boolean(props.label || slots.default);
-});
+const hasLabel = useRenderComputed(
+  () => Boolean(props.label) || hasRenderableContent(slots.default?.())
+);
+const hasHelp = useRenderComputed(
+  () => Boolean(props.helpText) || hasRenderableContent(slots.help?.())
+);
 
 const radioName = computed(() => {
   return radioGroupContext?.name || props.name || `radio-${radioId}`;
@@ -295,18 +308,24 @@ const wrapperStyles = computed(() => {
   return props.customStyle || {};
 });
 
-const showErrorMessage = computed(() => {
-  return Boolean(currentErrorMessage.value) || currentStatus.value === 'error';
+const hasErrorState = computed(
+  () => Boolean(currentErrorMessage.value) || currentStatus.value === 'error'
+);
+const showErrorMessage = useRenderComputed(() => {
+  return (
+    hasErrorState.value &&
+    (Boolean(currentErrorMessage.value) || hasRenderableContent(slots.error?.()))
+  );
 });
 
 const showBottomInfo = computed(() => {
-  return props.helpText || slots.help || showErrorMessage.value;
+  return hasHelp.value || showErrorMessage.value;
 });
 
 const ariaDescribedBy = computed(() => {
   const ids: string[] = [];
 
-  if (props.helpText || slots.help) {
+  if (hasHelp.value) {
     ids.push(`${radioId}-help`);
   }
 
@@ -338,8 +357,7 @@ const handleChange = (event: Event) => {
     emit('change', props.value, event);
     formItem?.onFieldChange();
   }
-  if (radioGroupContext) void nextTick(restoreNativeState);
-  else if (radioRef.value) restoreNativeRadioGroup(radioRef.value);
+  if (radioRef.value) restoreNativeRadioGroup(radioRef.value);
 };
 
 const handleFocus = (event: FocusEvent) => {

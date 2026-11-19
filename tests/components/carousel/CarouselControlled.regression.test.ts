@@ -14,6 +14,31 @@ const slots = {
 };
 
 describe('Carousel 严格受控', () => {
+  it('聚焦轮播后按方向切换或跳至首尾，内部控件独立处理按键', async () => {
+    const wrapper = mount(ExCarousel, {
+      props: {
+        modelValue: 1,
+        autoplay: false,
+        height: 240,
+        style: [{ minHeight: '80px' }, ['color: red']],
+      },
+      slots,
+    });
+    wrappers.push(wrapper);
+    expect(wrapper.element.style.minHeight).toBe('80px');
+    expect(wrapper.element.style.color).toBe('red');
+    await wrapper.trigger('keydown', { key: 'ArrowLeft' });
+    await wrapper.trigger('keydown', { key: 'ArrowRight' });
+    await wrapper.trigger('keydown', { key: 'ArrowDown' });
+    await wrapper.get('button').trigger('keydown', { key: 'Home' });
+    await wrapper.setProps({ direction: 'vertical' });
+    await wrapper.trigger('keydown', { key: 'ArrowUp' });
+    await wrapper.trigger('keydown', { key: 'ArrowDown' });
+    await wrapper.trigger('keydown', { key: 'Home' });
+    await wrapper.trigger('keydown', { key: 'End' });
+    expect(wrapper.emitted('update:modelValue')).toEqual([[0], [2], [0], [2], [0], [2]]);
+  });
+
   it('按钮、指示器、公开方法只请求切换，被拒绝的请求不会产生过渡锁', async () => {
     vi.useFakeTimers();
     const wrapper = mount(ExCarousel, {

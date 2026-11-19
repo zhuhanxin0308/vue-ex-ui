@@ -56,10 +56,13 @@ describe('ExTimelineItem', () => {
     expect(wrapper.text()).toContain('content');
   });
 
-  it('emits click when clicked', async () => {
+  it('静态项目的空白区域不会触发点击操作', async () => {
     const wrapper = mount(ExTimelineItem, { slots: { default: () => 'content' } });
     await wrapper.find('.ex-timeline-item').trigger('click');
-    expect(wrapper.emitted('click')).toBeTruthy();
+    expect(wrapper.emitted('click')).toBeUndefined();
+    await wrapper.setProps({ clickable: true });
+    await wrapper.find('.ex-timeline-item').trigger('click');
+    expect(wrapper.emitted('click')).toHaveLength(1);
   });
 
   it('clickable 项同时保留列表项语义与独立按钮语义', async () => {

@@ -154,8 +154,6 @@
               `ex-calendar__day-event--${event.type || 'primary'}`,
             ]"
             @click="handleEventClick(event, currentDate)"
-            @keydown.enter.prevent="handleEventClick(event, currentDate)"
-            @keydown.space.prevent="handleEventClick(event, currentDate)"
           >
             <div class="ex-calendar__day-event-header">
               <span class="ex-calendar__day-event-title">{{ event.title }}</span>
@@ -257,8 +255,6 @@
                 type="button"
                 :class="['ex-calendar__event', `ex-calendar__event--${event.type || 'primary'}`]"
                 @click.stop="handleEventClick(event, cell.date)"
-                @keydown.enter.stop.prevent="handleEventClick(event, cell.date)"
-                @keydown.space.stop.prevent="handleEventClick(event, cell.date)"
               >
                 <span class="ex-calendar__event-dot" />
                 <span class="ex-calendar__event-title">{{ event.title }}</span>
@@ -357,8 +353,6 @@
                 type="button"
                 :class="['ex-calendar__event', `ex-calendar__event--${event.type || 'primary'}`]"
                 @click.stop="handleEventClick(event, cell.date)"
-                @keydown.enter.stop.prevent="handleEventClick(event, cell.date)"
-                @keydown.space.stop.prevent="handleEventClick(event, cell.date)"
               >
                 <span class="ex-calendar__event-dot" />
                 <span class="ex-calendar__event-title">{{ event.title }}</span>
@@ -387,8 +381,6 @@
           class="ex-calendar__year-month"
           type="button"
           @click="selectMonth(month)"
-          @keydown.enter.prevent="selectMonth(month)"
-          @keydown.space.prevent="selectMonth(month)"
         >
           <div class="ex-calendar__year-month-title">
             {{ t('calendar.monthFormat', { month }) }}
@@ -428,6 +420,8 @@ import { computed, ref, watch, shallowRef, onMounted } from 'vue';
 import { useI18n } from '../../locale';
 import {
   calendarDayNumber,
+  cloneDate,
+  isValidDate,
   createLocalDate,
   parseLocalDate,
   setMonthClamped,
@@ -483,7 +477,7 @@ watch(() => [props.showLunar, props.showSolarTerm], ensureLunarLib);
 
 const calendarRef = ref<HTMLDivElement>();
 const SSR_CALENDAR_ANCHOR = new Date(2000, 0, 1);
-const initialModelDate = props.modelValue instanceof Date ? new Date(props.modelValue) : null;
+const initialModelDate = cloneDate(props.modelValue);
 const currentDate = ref(initialModelDate ?? new Date(SSR_CALENDAR_ANCHOR));
 const todayDate = ref<Date | null>(null);
 const { value: selectedDate, request: requestSelectedDate } = useControllableState<Date | null>({
@@ -505,7 +499,7 @@ const resetViewToToday = () => {
 onMounted(() => {
   mounted = true;
   todayDate.value = new Date();
-  if (props.modelValue == null) resetViewToToday();
+  if (!isValidDate(props.modelValue)) resetViewToToday();
   if (focusedDateTimestamp.value === null) {
     focusedDateTimestamp.value = getDateTimestamp(currentDate.value);
   }
@@ -614,14 +608,19 @@ const getDateTimestamp = (value: Date): number => {
   return date.getTime();
 };
 
-// 日视图的事件
-const dayEvents = computed(() => {
-  const date = new Date(currentDate.value);
-  date.setHours(0, 0, 0, 0);
-  return props.events.filter(event => {
-    return getDayTimestamp(event.date) === date.getTime();
-  });
+const eventsByDay = computed(() => {
+  const days = new Map<number, CalendarEvent[]>();
+  for (const event of props.events) {
+    const date = getDayTimestamp(event.date);
+    if (date === null) continue;
+    const events = days.get(date);
+    if (events) events.push(event);
+    else days.set(date, [event]);
+  }
+  return days;
 });
+const checkedDays = computed(() => new Set(props.checkedInDates.map(getDayTimestamp)));
+const dayEvents = computed(() => eventsByDay.value.get(getDateTimestamp(currentDate.value)) ?? []);
 
 // 周视图的单元格
 const weekCells = computed(() => {
@@ -756,14 +755,10 @@ const createCell = (date: Date, day: number, isCurrentMonth: boolean): CalendarD
 
   const isToday = todayDate.value !== null && dateTime === getDateTimestamp(todayDate.value);
   // 获取该日期的事件
-  const dateEvents = props.events.filter(event => {
-    return getDayTimestamp(event.date) === dateTime;
-  });
+  const dateEvents = eventsByDay.value.get(dateTime) ?? [];
 
   // 检查是否签到
-  const checkedIn = props.checkedInDates.some(checkedDate => {
-    return getDayTimestamp(checkedDate) === dateTime;
-  });
+  const checkedIn = checkedDays.value.has(dateTime);
 
   // 获取节假日
   const holiday = getHoliday(cellDate);
@@ -843,7 +838,7 @@ const calendarRows = computed(() =>
   )
 );
 const { isCellFocusable, handleCellKeydown } = useCalendarKeyboard({
-  currentDate,
+  currentDate: computed({ get: () => currentDate.value, set: moveView }),
   focusedDate: focusedDateTimestamp,
   element: calendarRef,
   cells: computed(() => (activeMode.value === 'week' ? weekCells.value : calendarCells.value)),
@@ -858,7 +853,7 @@ const handleDateClick = (cell: CalendarDateCell) => {
 
   focusedDateTimestamp.value = getDateTimestamp(cell.date);
   requestSelectedDate(cell.date);
-  currentDate.value = new Date(cell.date);
+  moveView(new Date(cell.date));
   emit('update:modelValue', cell.date);
   emit('select', cell.date, cell);
   emit('date-click', cell.date, cell);
@@ -869,10 +864,10 @@ const handleEventClick = (event: CalendarEvent, date: Date) => {
 };
 
 const selectDate = (date: Date) => {
-  if (props.disabledDate?.(date)) return;
+  if (!isValidDate(date) || props.disabledDate?.(date)) return;
   focusedDateTimestamp.value = getDateTimestamp(date);
   requestSelectedDate(date);
-  currentDate.value = new Date(date);
+  moveView(new Date(date));
   emit('update:modelValue', date);
 };
 
@@ -881,7 +876,7 @@ const goToday = () => {
   if (props.disabledDate?.(today)) return;
   todayDate.value = new Date(today);
   focusedDateTimestamp.value = getDateTimestamp(today);
-  currentDate.value = today;
+  moveView(today);
   requestSelectedDate(today);
   emit('update:modelValue', today);
 };
@@ -892,75 +887,54 @@ const changeMode = (newMode: CalendarMode) => {
   emit('mode-change', newMode);
 };
 
-const prevPeriod = () => {
+function moveView(date: Date) {
+  const previous = currentDate.value;
+  currentDate.value = date;
+  if (date.getFullYear() !== previous.getFullYear()) emit('year-change', date.getFullYear());
+  if (date.getMonth() !== previous.getMonth())
+    emit('month-change', date.getFullYear(), date.getMonth() + 1);
+}
+
+const movePeriod = (direction: number) => {
   const newDate = new Date(currentDate.value);
 
   switch (activeMode.value) {
     case 'day':
-      newDate.setDate(newDate.getDate() - 1);
+      newDate.setDate(newDate.getDate() + direction);
       break;
     case 'week':
-      newDate.setDate(newDate.getDate() - 7);
+      newDate.setDate(newDate.getDate() + direction * CALENDAR_WEEK_LENGTH);
       break;
     case 'month':
-      currentDate.value = setMonthClamped(newDate, newDate.getMonth() - 1);
-      emit('month-change', currentDate.value.getFullYear(), currentDate.value.getMonth() + 1);
-      return;
+      return moveView(setMonthClamped(newDate, newDate.getMonth() + direction));
     case 'year':
-      currentDate.value = setYearClamped(newDate, newDate.getFullYear() - 1);
-      emit('year-change', currentDate.value.getFullYear());
-      return;
+      return moveView(setYearClamped(newDate, newDate.getFullYear() + direction));
   }
 
-  currentDate.value = newDate;
+  moveView(newDate);
 };
-
-const nextPeriod = () => {
-  const newDate = new Date(currentDate.value);
-
-  switch (activeMode.value) {
-    case 'day':
-      newDate.setDate(newDate.getDate() + 1);
-      break;
-    case 'week':
-      newDate.setDate(newDate.getDate() + 7);
-      break;
-    case 'month':
-      currentDate.value = setMonthClamped(newDate, newDate.getMonth() + 1);
-      emit('month-change', currentDate.value.getFullYear(), currentDate.value.getMonth() + 1);
-      return;
-    case 'year':
-      currentDate.value = setYearClamped(newDate, newDate.getFullYear() + 1);
-      emit('year-change', currentDate.value.getFullYear());
-      return;
-  }
-
-  currentDate.value = newDate;
-};
+const prevPeriod = () => movePeriod(-1);
+const nextPeriod = () => movePeriod(1);
 
 const selectMonth = (month: number) => {
-  currentDate.value = setMonthClamped(currentDate.value, month - 1);
+  moveView(setMonthClamped(currentDate.value, month - 1));
   changeMode('month');
 };
 
 const prevMonth = () => {
-  currentDate.value = setMonthClamped(currentDate.value, currentDate.value.getMonth() - 1);
-  emit('month-change', currentDate.value.getFullYear(), currentDate.value.getMonth() + 1);
+  moveView(setMonthClamped(currentDate.value, currentDate.value.getMonth() - 1));
 };
 
 const nextMonth = () => {
-  currentDate.value = setMonthClamped(currentDate.value, currentDate.value.getMonth() + 1);
-  emit('month-change', currentDate.value.getFullYear(), currentDate.value.getMonth() + 1);
+  moveView(setMonthClamped(currentDate.value, currentDate.value.getMonth() + 1));
 };
 
 const prevYear = () => {
-  currentDate.value = setYearClamped(currentDate.value, currentDate.value.getFullYear() - 1);
-  emit('year-change', currentDate.value.getFullYear());
+  moveView(setYearClamped(currentDate.value, currentDate.value.getFullYear() - 1));
 };
 
 const nextYear = () => {
-  currentDate.value = setYearClamped(currentDate.value, currentDate.value.getFullYear() + 1);
-  emit('year-change', currentDate.value.getFullYear());
+  moveView(setYearClamped(currentDate.value, currentDate.value.getFullYear() + 1));
 };
 
 const getElement = () => {
@@ -971,7 +945,7 @@ const getElement = () => {
 watch(
   () => props.modelValue,
   newValue => {
-    if (newValue instanceof Date) {
+    if (isValidDate(newValue)) {
       currentDate.value = new Date(newValue);
       focusedDateTimestamp.value = getDateTimestamp(newValue);
     } else if (newValue === null && mounted) {

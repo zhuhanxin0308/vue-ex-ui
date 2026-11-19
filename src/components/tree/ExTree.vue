@@ -224,13 +224,14 @@ const checkedState = useControllableState<string[]>({
 
 const effectiveExpandedKeys = expandedState.value;
 const effectiveSelectedKeys = selectedState.value;
-const effectiveCheckedKeys = computed(() => {
-  if (props.checkStrictly) return checkedState.value.value;
+const checkSummary = computed(() => {
+  if (props.checkStrictly) return { checked: checkedState.value.value, half: [] as string[] };
   const checked = new Set(checkedState.value.value);
   const { nodes, parents } = treeIndex.value;
   const inherited = new Set<string>();
   // 前序传递已有勾选意图；不可勾选节点自身不被新增，后代沿用点击联动语义。
   for (const node of nodes.values()) {
+    if (treeIndex.value.disabled.has(node.key)) continue;
     const parent = parents.get(node.key);
     if (parent !== undefined && inherited.has(parent)) {
       inherited.add(node.key);
@@ -238,14 +239,10 @@ const effectiveCheckedKeys = computed(() => {
     }
     if (isNodeCheckable(node) && checked.has(node.key)) inherited.add(node.key);
   }
-  // 逆前序汇总完整的子级状态，外部值与用户点击使用相同的父子关系。
-  for (const node of [...nodes.values()].reverse()) {
-    const children = node.children?.filter(isNodeCheckable) ?? [];
-    if (isNodeCheckable(node) && children.length && children.every(child => checked.has(child.key)))
-      checked.add(node.key);
-  }
-  return [...checked];
+  const half = aggregateChecks(checked);
+  return { checked: [...checked], half };
 });
+const effectiveCheckedKeys = computed(() => checkSummary.value.checked);
 const expandedKeySet = computed(() => new Set(effectiveExpandedKeys.value));
 const selectedKeySet = computed(() => new Set(effectiveSelectedKeys.value));
 const checkedKeySet = computed(() => new Set(effectiveCheckedKeys.value));
@@ -261,6 +258,7 @@ watch(
 const treeIndex = computed(() => {
   const nodes = new Map<string, TreeNode>();
   const parents = new Map<string, string>();
+  const disabled = new Set<string>();
   const pending = treeData.value
     .map(node => ({ node, parent: undefined as string | undefined }))
     .reverse();
@@ -268,6 +266,7 @@ const treeIndex = computed(() => {
     const entry = pending.pop();
     if (!entry) continue;
     const { node, parent } = entry;
+    if (node.disabled || (parent !== undefined && disabled.has(parent))) disabled.add(node.key);
     nodes.set(node.key, node);
     if (parent !== undefined) parents.set(node.key, parent);
     const children = node.children ?? [];
@@ -276,7 +275,7 @@ const treeIndex = computed(() => {
       if (child) pending.push({ node: child, parent: node.key });
     }
   }
-  return { nodes, parents };
+  return { nodes, parents, disabled };
 });
 const nodeMap = computed(() => treeIndex.value.nodes);
 
@@ -431,11 +430,8 @@ onBeforeUnmount(() => {
 });
 
 // 半选状态完全由真实 checkedKeys 推导，不维护可失步的第二份状态。
-const halfCheckedKeys = computed<string[]>(() => {
-  if (props.checkStrictly) {
-    return [];
-  }
-
+const halfCheckedKeys = computed(() => checkSummary.value.half);
+function aggregateChecks(checked: Set<string>): string[] {
   const { nodes, parents } = treeIndex.value;
   const orderedNodes = Array.from(nodes.values());
   const counts = new Map<string, { total: number; checked: number }>();
@@ -443,24 +439,26 @@ const halfCheckedKeys = computed<string[]>(() => {
   // 逆前序保证先汇总孩子；每条父子边只处理一次，时间和空间均为 O(N)。
   for (let index = orderedNodes.length - 1; index >= 0; index -= 1) {
     const node = orderedNodes[index];
-    if (!node) continue;
+    if (!node || treeIndex.value.disabled.has(node.key)) continue;
     const descendants = counts.get(node.key) ?? { total: 0, checked: 0 };
+    if (descendants.total && descendants.checked === descendants.total && isNodeCheckable(node))
+      checked.add(node.key);
     if (descendants.checked > 0 && descendants.checked < descendants.total) half.add(node.key);
     const parent = parents.get(node.key);
     if (parent === undefined) continue;
     const parentCount = counts.get(parent) ?? { total: 0, checked: 0 };
     const checkable = isNodeCheckable(node);
     parentCount.total += descendants.total + Number(checkable);
-    parentCount.checked +=
-      descendants.checked + Number(checkable && checkedKeySet.value.has(node.key));
+    parentCount.checked += descendants.checked + Number(checkable && checked.has(node.key));
     counts.set(parent, parentCount);
   }
   // 查询方法保持原来的前序结果顺序，索引优化不改变对外契约。
   return orderedNodes.filter(node => half.has(node.key)).map(node => node.key);
-});
+}
 
 // 获取所有子节点的 key
-const isNodeCheckable = (node: TreeNode): boolean => !node.disabled && node.checkable !== false;
+const isNodeCheckable = (node: TreeNode): boolean =>
+  !treeIndex.value.disabled.has(node.key) && node.checkable !== false;
 
 const getAllChildKeys = (node: TreeNode): string[] => {
   const keys: string[] = [];
@@ -468,6 +466,7 @@ const getAllChildKeys = (node: TreeNode): string[] => {
   // 异步返回可以包含深层完整子树，迭代遍历保留前序契约并避免调用栈溢出。
   while (pending.length) {
     const child = pending.pop()!;
+    if (treeIndex.value.disabled.has(child.key)) continue;
     if (isNodeCheckable(child)) keys.push(child.key);
     const children = child.children ?? [];
     for (let index = children.length - 1; index >= 0; index -= 1) pending.push(children[index]!);
@@ -533,7 +532,7 @@ const handleSelect = (node: TreeNode, selected: boolean) => {
 
 // 处理勾选
 const handleCheck = (node: TreeNode, checked: boolean) => {
-  if (props.disabled || !props.checkable || node.disabled || node.checkable === false) return;
+  if (props.disabled || !props.checkable || !isNodeCheckable(node)) return;
 
   const checkedSet = new Set(effectiveCheckedKeys.value);
 
@@ -542,18 +541,7 @@ const handleCheck = (node: TreeNode, checked: boolean) => {
     if (!props.checkStrictly) {
       // 级联勾选子节点
       getAllChildKeys(node).forEach(key => checkedSet.add(key));
-      // 级联勾选父节点
-      const parentKeys = getAllParentKeys(node.key);
-      parentKeys.forEach(parentKey => {
-        const parentNode = nodeMap.value.get(parentKey);
-        if (parentNode?.children) {
-          const checkableChildren = parentNode.children.filter(isNodeCheckable);
-          const allChildrenChecked = checkableChildren.every(child => checkedSet.has(child.key));
-          if (isNodeCheckable(parentNode) && checkableChildren.length > 0 && allChildrenChecked) {
-            checkedSet.add(parentKey);
-          }
-        }
-      });
+      aggregateChecks(checkedSet);
     }
   } else {
     checkedSet.delete(node.key);
@@ -561,7 +549,9 @@ const handleCheck = (node: TreeNode, checked: boolean) => {
       // 级联取消子节点
       getAllChildKeys(node).forEach(key => checkedSet.delete(key));
       // 级联取消父节点
-      getAllParentKeys(node.key).forEach(key => checkedSet.delete(key));
+      getAllParentKeys(node.key).forEach(key => {
+        if (isNodeCheckable(nodeMap.value.get(key)!)) checkedSet.delete(key);
+      });
     }
   }
 
@@ -572,7 +562,12 @@ const handleCheck = (node: TreeNode, checked: boolean) => {
 
 function handleLoadedChildren(node: TreeNode, children: TreeNode[]) {
   // 加载结束时读取真实勾选状态，避免旧请求复活已经取消的选择。
-  if (props.checkable && !props.checkStrictly && checkedKeySet.value.has(node.key)) {
+  if (
+    props.checkable &&
+    !props.checkStrictly &&
+    isNodeCheckable(node) &&
+    checkedKeySet.value.has(node.key)
+  ) {
     const next = new Set(effectiveCheckedKeys.value);
     getAllChildKeys(node).forEach(key => next.add(key));
     if (next.size !== checkedState.value.value.length) checkedState.request([...next]);
@@ -721,7 +716,7 @@ const requestNodeSelection = (key: string, selected: boolean): boolean => {
 
 const requestNodeCheck = (key: string, checked: boolean): boolean => {
   const node = nodeMap.value.get(key);
-  if (!node || props.disabled || !props.checkable || node.disabled || node.checkable === false) {
+  if (!node || props.disabled || !props.checkable || !isNodeCheckable(node)) {
     return false;
   }
   handleCheck(node, checked);
@@ -772,6 +767,7 @@ provide(TREE_STATE_KEY, {
   expanded: expandedKeySet,
   selected: selectedKeySet,
   checked: checkedKeySet,
+  disabledChecks: computed(() => treeIndex.value.disabled),
   halfChecked: computed(() => new Set(halfCheckedKeys.value)),
   isExpandable: loader.isExpandable,
   getLoadState: getNodeLoadState,

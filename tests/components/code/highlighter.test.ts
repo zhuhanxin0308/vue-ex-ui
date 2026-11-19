@@ -11,6 +11,20 @@ import {
 import { getGrammar } from '../../../src/components/code/highlighter/grammars';
 
 describe('Code highlighter（零依赖）', () => {
+  it.each(['r', 'br', 'cr'])('Rust %s 原始字符串使用对应数量的井号闭合', prefix => {
+    const raw = `${prefix}##"text with " and "# inside"##`;
+    expect(tokenizeToLines(raw + ' + 1', 'rust')[0]?.[0]).toEqual({ type: 'string', value: raw });
+  });
+
+  it('Rust 正在编辑的未闭合原始字符串保留完整跨行内容', () => {
+    const source = 'r###"first "##\nsecond';
+    const lines = tokenizeToLines(source, 'rust');
+    expect(lines).toEqual([
+      [{ type: 'string', value: 'r###"first "##' }],
+      [{ type: 'string', value: 'second' }],
+    ]);
+  });
+
   it('escapeHtml 应该转义所有危险字符', () => {
     expect(escapeHtml('<script>alert("x" & \'y\')</script>')).toBe(
       '&lt;script&gt;alert(&quot;x&quot; &amp; &#x27;y&#x27;)&lt;/script&gt;'

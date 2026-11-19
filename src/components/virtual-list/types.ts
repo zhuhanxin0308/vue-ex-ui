@@ -143,3 +143,14 @@ export interface VisibleRange {
   /** 可见项目数量 */
   visibleCount: number;
 }
+
+/** 滚动方法返回时可查询当前实际视口；平滑滚动过程中随原生事件更新。 */
+export interface ExVirtualListExposed {
+  scrollToIndex(index: number, behavior?: 'auto' | 'smooth'): void;
+  scrollTo(offset: number, behavior?: 'auto' | 'smooth'): void;
+  scrollToTop(behavior?: 'auto' | 'smooth'): void;
+  scrollToBottom(behavior?: 'auto' | 'smooth'): void;
+  getScrollInfo(): ScrollInfo;
+  getVisibleRange(): VisibleRange;
+  refresh(): void;
+}

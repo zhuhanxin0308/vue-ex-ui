@@ -138,7 +138,10 @@
 
             <!-- 单个元素变体 -->
             <div
-              v-if="['text', 'image', 'button', 'card', 'rect'].includes(variant)"
+              v-if="
+                (variant === 'text' && !title && !(hasExplicitRows && computedRows > 0)) ||
+                ['image', 'button', 'card', 'rect'].includes(variant)
+              "
               class="ex-skeleton__element"
               :class="`ex-skeleton__element--${variant}`"
               :style="elementStyle"
@@ -233,14 +236,7 @@ const skeletonStyles = computed(() => {
     styles.height = typeof props.height === 'number' ? `${props.height}px` : props.height;
   }
 
-  if (props.style) {
-    if (typeof props.style === 'string') {
-      return [styles, props.style];
-    }
-    Object.assign(styles, props.style);
-  }
-
-  return styles;
+  return [styles, props.style];
 });
 
 const avatarStyle = computed(() => {

@@ -24,8 +24,8 @@
       >
         <div
           v-for="item in visibleData"
-          :key="getItemKey(item)"
-          :ref="el => setItemRef(el as HTMLElement, item.index)"
+          :key="item.key"
+          :ref="el => setItemRef(el as HTMLElement | null, item.key, item.index)"
           class="ex-virtual-list__item"
           :class="{ 'is-last': item.index === dataSource.length - 1 }"
           :style="itemStyle()"
@@ -52,7 +52,7 @@
 <script lang="ts" setup>
 import { ref, computed, watch, onMounted, onBeforeUnmount, shallowRef, nextTick } from 'vue';
 import type { CSSProperties } from 'vue';
-import type { ExVirtualListProps, ExVirtualListEmits } from './types';
+import type { ExVirtualListProps, ExVirtualListEmits, ExVirtualListExposed } from './types';
 import { logger } from '../../utils/logger';
 import { isComposingKeyboardEvent } from '../../utils/keyboard';
 
@@ -103,7 +103,7 @@ const cachedTotalHeight = shallowRef(0);
 let cacheInitialized = false;
 
 // 项目元素引用 - 用于测量实际高度
-const itemRefs = new Map<number, HTMLElement>();
+const itemRefs = new Map<string | number, HTMLElement>();
 const itemIndices = new WeakMap<HTMLElement, number>();
 const resizeObserver = ref<ResizeObserver | null>(null);
 let disposed = false;
@@ -293,8 +293,13 @@ const getInitialEndIndex = () => {
   let end = props.dataSource.length;
   // SSR 与首次水合均按声明的视口估算首屏，不依赖尚不存在的 DOM 尺寸。
   if (shouldUseVirtual.value) {
-    const height =
-      typeof props.height === 'number' && props.height > 0 ? props.height : DEFAULT_ITEM_HEIGHT_PX;
+    const pixels =
+      typeof props.height === 'number'
+        ? props.height
+        : /^\d+(?:\.\d+)?(?:px)?$/.test(props.height.trim())
+          ? Number.parseFloat(props.height)
+          : NaN;
+    const height = Number.isFinite(pixels) && pixels > 0 ? pixels : DEFAULT_ITEM_HEIGHT_PX;
     let covered = 0;
     end = 0;
     while (end < props.dataSource.length && covered < height) {
@@ -314,10 +319,10 @@ const visibleData = computed(() => {
   const start = shouldUseVirtual.value ? startIndex.value : 0;
   const end = shouldUseVirtual.value ? endIndex.value : props.dataSource.length;
 
-  return props.dataSource.slice(start, end).map((data, i) => ({
-    data,
-    index: start + i,
-  }));
+  return props.dataSource.slice(start, end).map((data, i) => {
+    const index = start + i;
+    return { data, index, key: getItemKey({ data, index }) };
+  });
 });
 
 // 获取项目 key
@@ -341,21 +346,21 @@ const getItemKey = (item: { index: number; data: unknown }) => {
 };
 
 // 设置项目引用并测量高度
-const setItemRef = (el: HTMLElement | null, index: number) => {
+const setItemRef = (el: HTMLElement | null, key: string | number, index: number) => {
   if (!el) {
     // 节点移出可视区：取消观察并清理引用
-    const old = itemRefs.get(index);
+    const old = itemRefs.get(key);
     if (old && resizeObserver.value) {
       resizeObserver.value.unobserve(old);
     }
     if (old) itemIndices.delete(old);
-    pendingMeasurements.delete(index);
-    itemRefs.delete(index);
+    if (pendingMeasurements.get(index) === old) pendingMeasurements.delete(index);
+    itemRefs.delete(key);
     return;
   }
 
-  if (itemRefs.get(index) === el) return;
-  itemRefs.set(index, el);
+  if (itemRefs.get(key) === el && itemIndices.get(el) === index) return;
+  itemRefs.set(key, el);
   itemIndices.set(el, index);
 
   // 如果是动态高度，动态观察新出现的节点并测量实际高度
@@ -369,7 +374,7 @@ const setItemRef = (el: HTMLElement | null, index: number) => {
 
 // 测量项目实际高度
 const measureItemHeight = (index: number, element: HTMLElement): boolean => {
-  if (itemRefs.get(index) !== element || index >= props.dataSource.length) return false;
+  if (itemIndices.get(element) !== index || index >= props.dataSource.length) return false;
 
   try {
     const actualHeight = element.offsetHeight;
@@ -495,13 +500,20 @@ const getItemTabindex = (index: number): number | undefined => {
 const focusItem = (index: number) => {
   const boundedIndex = Math.min(Math.max(index, 0), Math.max(props.dataSource.length - 1, 0));
   focusedIndex.value = boundedIndex;
-  const isRendered = boundedIndex >= startIndex.value && boundedIndex < endIndex.value;
-  if (!isRendered) {
+  const viewport = listRef.value;
+  if (
+    shouldUseVirtual.value &&
+    viewport &&
+    (getOffset(boundedIndex) < viewport.scrollTop ||
+      getOffset(boundedIndex + 1) > viewport.scrollTop + viewport.clientHeight)
+  ) {
     scrollToIndex(boundedIndex);
-    // scrollTo 会同步更新 auto 滚动位置；立即重算窗口后，下一帧才能聚焦新节点。
-    updateVisibleRange();
   }
-  nextTick(() => itemRefs.get(boundedIndex)?.focus());
+  nextTick(() => {
+    if (boundedIndex >= props.dataSource.length) return;
+    const key = getItemKey({ index: boundedIndex, data: props.dataSource[boundedIndex] });
+    itemRefs.get(key)?.focus();
+  });
 };
 
 // 列表项采用 roving tabindex，避免大量数据同时进入 Tab 顺序。
@@ -560,7 +572,7 @@ const refresh = () => {
     if (typeof props.itemHeight === 'function') buildOffsetCache();
     updateVisibleRange();
     if (typeof props.itemHeight === 'function') {
-      itemRefs.forEach((element, index) => queueMeasurement(index, element));
+      itemRefs.forEach(element => queueMeasurement(itemIndices.get(element)!, element));
     }
   });
 };
@@ -576,10 +588,7 @@ const scrollToIndex = (index: number, behavior: ScrollBehavior = 'auto') => {
   // 使用缓存的偏移量 - O(1)
   const offset = getOffset(boundedIndex);
 
-  listEl.scrollTo({
-    top: offset,
-    behavior,
-  });
+  scrollTo(offset, behavior);
 };
 
 const scrollTo = (offset: number, behavior: ScrollBehavior = 'auto') => {
@@ -590,6 +599,7 @@ const scrollTo = (offset: number, behavior: ScrollBehavior = 'auto') => {
     top: offset,
     behavior,
   });
+  updateVisibleRange();
 };
 
 const scrollToTop = (behavior: ScrollBehavior = 'auto') => {
@@ -600,10 +610,7 @@ const scrollToBottom = (behavior: ScrollBehavior = 'auto') => {
   const listEl = listRef.value;
   if (!listEl) return;
 
-  listEl.scrollTo({
-    top: listEl.scrollHeight,
-    behavior,
-  });
+  scrollTo(listEl.scrollHeight, behavior);
 };
 
 const getScrollInfo = () => {
@@ -743,7 +750,7 @@ watch(
 watch(estimatedHeights, () => refresh());
 
 // 暴露方法
-defineExpose({
+defineExpose<ExVirtualListExposed>({
   scrollToIndex,
   scrollTo,
   scrollToTop,

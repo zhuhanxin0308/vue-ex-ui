@@ -111,7 +111,11 @@ export interface StepsContext {
   clickable: ComputedRef<boolean>;
   stepCount: ComputedRef<number>;
   /** 登记步骤及其元素读取器；父组件在更新后按真实 DOM 顺序同步索引。 */
-  registerStep: (uid: symbol, getElement: () => HTMLElement | null) => void;
+  registerStep: (
+    uid: symbol,
+    getElement: () => HTMLElement | null,
+    isDisabled?: () => boolean
+  ) => void;
   unregisterStep: (uid: symbol) => void;
   /** 获取某步骤当前的索引（随增删/重排实时变化，-1 表示未注册） */
   getStepIndex: (uid: symbol) => number;

@@ -1,7 +1,7 @@
 // ExUI Config Provider Types
 // 全局配置提供者类型定义
 
-import type { InjectionKey, Ref } from 'vue';
+import type { InjectionKey, Ref, StyleValue } from 'vue';
 import type { SupportedLocale } from '../../locale';
 import type { Theme, ThemeVariables } from '../../types/theme';
 import { createSharedInjectionKey } from '../../utils/shared-runtime';
@@ -62,7 +62,7 @@ export interface ExConfigProviderProps {
   /**
    * 自定义样式
    */
-  style?: string | Record<string, string | number>;
+  style?: StyleValue;
 }
 
 /**

@@ -86,7 +86,7 @@ export interface UseOverlayOptions {
   /** 是否在打开后自动聚焦，默认 true。 */
   autoFocus?: () => boolean;
   /** 关闭后是否恢复打开前焦点。 */
-  restoreFocus?: boolean;
+  restoreFocus?: boolean | (() => boolean);
   /** 子面板仅在焦点仍位于其逻辑子树内时恢复，避免干扰 Tab 的下一目标。 */
   restoreFocusOnlyWhenContained?: boolean;
   /** 是否立即同步初始打开状态，默认 true。 */
@@ -134,6 +134,8 @@ export function useOverlay(options: UseOverlayOptions): UseOverlayReturn {
   const shouldLock = () => options.lockScroll?.() !== false;
   const shouldTrapFocus = () => options.trapFocus?.() !== false;
   const shouldAutoFocus = () => options.autoFocus?.() !== false;
+  const shouldRestoreFocus = () =>
+    typeof options.restoreFocus === 'function' ? options.restoreFocus() : options.restoreFocus;
 
   const syncScrollLock = () => {
     const shouldHold = active.value && shouldLock();
@@ -159,10 +161,9 @@ export function useOverlay(options: UseOverlayOptions): UseOverlayReturn {
   const activate = () => {
     if (disposed.value || typeof document === 'undefined') return;
     const revision = ++activationRevision;
-    if (options.restoreFocus) {
-      previousActiveElement =
-        document.activeElement instanceof HTMLElement ? document.activeElement : null;
-    }
+    // 保留打开时的焦点快照，关闭时再读取动态策略，支持运行中切换触发方式。
+    previousActiveElement =
+      document.activeElement instanceof HTMLElement ? document.activeElement : null;
     if (!unregisterOverlay) {
       unregisterOverlay = registerOverlay(entry);
     }
@@ -181,7 +182,7 @@ export function useOverlay(options: UseOverlayOptions): UseOverlayReturn {
   const deactivate = () => {
     if (typeof document === 'undefined') return;
     activationRevision += 1;
-    const shouldRestoreFocus =
+    const focusWithinBoundary =
       !options.restoreFocusOnlyWhenContained ||
       getOverlayOwnedContainers(entry).some(container =>
         container.contains(document.activeElement)
@@ -198,8 +199,8 @@ export function useOverlay(options: UseOverlayOptions): UseOverlayReturn {
     cancelAutoFocus = null;
 
     if (
-      options.restoreFocus &&
-      shouldRestoreFocus &&
+      shouldRestoreFocus() &&
+      focusWithinBoundary &&
       wasTop &&
       (parent?.active?.() ?? true) &&
       previousActiveElement?.isConnected

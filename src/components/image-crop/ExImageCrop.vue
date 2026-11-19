@@ -220,6 +220,7 @@
 </template>
 
 <script setup lang="ts">
+import { addDecimal } from '../../utils/decimal';
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import ExButton from '../button/ExButton.vue';
 import ExIcon from '../icon/ExIcon.vue';
@@ -516,8 +517,8 @@ const updateZoom = (nextZoom: number): void => {
   emit('zoom', zoom.value);
 };
 
-const zoomIn = (): void => updateZoom(zoom.value + props.zoomStep);
-const zoomOut = (): void => updateZoom(zoom.value - props.zoomStep);
+const zoomIn = (): void => updateZoom(addDecimal(zoom.value, props.zoomStep));
+const zoomOut = (): void => updateZoom(addDecimal(zoom.value, -props.zoomStep));
 
 const updateRotation = (angle: number): void => {
   if (!isReady.value) return;

@@ -46,7 +46,7 @@
               class="ex-drawer__header"
             >
               <div
-                v-if="$slots.header"
+                v-if="hasHeaderSlot"
                 :id="titleId"
                 class="ex-drawer__title"
               >
@@ -127,6 +127,8 @@ import {
 import { useLocale } from '../../locale';
 import { useGuardedVisibility } from '../../composables/useGuardedVisibility';
 import { useOverlay, useOverlayTransition } from '../../composables/useOverlay';
+import { useRenderComputed } from '../../composables/useRenderComputed';
+import { hasRenderableContent } from '../../utils/vnode';
 import type {
   DrawerPlacement,
   ExDrawerEmits,
@@ -179,16 +181,17 @@ const readTextAttribute = (name: string): string | undefined => {
   const value = attrs[name];
   return typeof value === 'string' && value.trim() ? value.trim() : undefined;
 };
-const nativeAriaLabel = computed(() => readTextAttribute('aria-label'));
-const nativeLabelledBy = computed(() => readTextAttribute('aria-labelledby'));
-const dialogRole = computed(() =>
+const nativeAriaLabel = useRenderComputed(() => readTextAttribute('aria-label'));
+const nativeLabelledBy = useRenderComputed(() => readTextAttribute('aria-labelledby'));
+const dialogRole = useRenderComputed(() =>
   readTextAttribute('role')?.toLowerCase() === 'alertdialog' ? 'alertdialog' : 'dialog'
 );
-const panelAttrs = computed(() =>
+const panelAttrs = useRenderComputed(() =>
   Object.fromEntries(Object.entries(attrs).filter(([key]) => !CONTROLLED_PANEL_ATTRS.has(key)))
 );
 
 const { visible, hasOpened, requestOpen, requestClose } = useGuardedVisibility({
+  skipRedundantRequests: true,
   modelValue: () => props.modelValue,
   beforeOpen: () => props.beforeOpen,
   beforeClose: () => props.beforeClose,
@@ -201,19 +204,24 @@ const { visible, hasOpened, requestOpen, requestClose } = useGuardedVisibility({
 const shouldRender = computed(
   () => overlayActive.value || (hasOpened.value && !props.destroyOnClose)
 );
-const hasTitle = computed(() => Boolean(props.title || slots.title));
+const hasTitle = useRenderComputed(
+  () => Boolean(props.title) || hasRenderableContent(slots.title?.())
+);
+const hasHeaderSlot = useRenderComputed(() => hasRenderableContent(slots.header?.()));
 const accessibleLabel = computed(() => {
   const explicitLabel = props.ariaLabel?.trim() || nativeAriaLabel.value;
   if (explicitLabel) return explicitLabel;
-  if (nativeLabelledBy.value || slots.header || hasTitle.value) return undefined;
+  if (nativeLabelledBy.value || hasHeaderSlot.value || hasTitle.value) return undefined;
   return tDialog('label');
 });
 const labelledBy = computed(() => {
   if (props.ariaLabel?.trim() || nativeAriaLabel.value) return undefined;
-  return nativeLabelledBy.value ?? (slots.header || hasTitle.value ? titleId : undefined);
+  return nativeLabelledBy.value ?? (hasHeaderSlot.value || hasTitle.value ? titleId : undefined);
 });
-const showHeader = computed(() => Boolean(slots.header || hasTitle.value || showCloseButton.value));
-const hasFooter = computed(() => Boolean(slots.footer || props.showFooter));
+const showHeader = computed(() => hasHeaderSlot.value || hasTitle.value || showCloseButton.value);
+const hasFooter = useRenderComputed(
+  () => hasRenderableContent(slots.footer?.()) || props.showFooter
+);
 
 const wrapperClasses = computed(() => ({
   'ex-drawer-wrapper--modeless': !props.mask,

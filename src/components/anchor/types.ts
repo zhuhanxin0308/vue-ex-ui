@@ -21,7 +21,7 @@ export interface ExAnchorProps {
   /** 设置锚点滚动偏移量 */
   targetOffset?: number;
   /** 指定滚动的容器 */
-  container?: () => HTMLElement | Window;
+  container?: () => HTMLElement | Window | null | undefined;
   /** 导航地标的显式无障碍名称。 */
   ariaLabel?: string;
 }

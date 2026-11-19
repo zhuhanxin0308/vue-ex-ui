@@ -15,7 +15,7 @@
   >
     <!-- 标签 -->
     <div
-      v-if="props.label || $slots.label"
+      v-if="hasGroupLabel"
       :id="labelId"
       class="ex-checkbox-group__label"
     >
@@ -58,7 +58,7 @@
     >
       <!-- 帮助文本 -->
       <div
-        v-if="props.helpText || $slots.help"
+        v-if="hasHelp"
         :id="`${groupId}-help`"
         class="ex-checkbox-group__help"
       >
@@ -106,6 +106,8 @@ import { generateId } from '../../utils/id';
 import { checkboxGroupContextKey, type CheckboxRegistration } from './context';
 import { useFormItem } from '../form/use-form-item';
 import { useControllableState } from '../../composables/useControllableState';
+import { useRenderComputed } from '../../composables/useRenderComputed';
+import { hasRenderableContent } from '../../utils/vnode';
 
 defineOptions({
   name: 'ExCheckboxGroup',
@@ -155,7 +157,12 @@ watch(
   },
   { flush: 'post' }
 );
-const hasGroupLabel = computed(() => Boolean(props.label || slots.label));
+const hasGroupLabel = useRenderComputed(
+  () => Boolean(props.label) || hasRenderableContent(slots.label?.())
+);
+const hasHelp = useRenderComputed(
+  () => Boolean(props.helpText) || hasRenderableContent(slots.help?.())
+);
 
 // 计算属性
 const currentStatus = computed(() => {
@@ -181,24 +188,22 @@ const currentReadonly = computed(() => {
 const currentShape = computed(() => props.shape ?? 'square');
 
 const currentErrorMessage = computed(() => {
-  return (
-    validationErrorMessage.value ||
-    props.errorMessage?.trim() ||
-    formItem?.errorMessage?.value ||
-    ''
-  );
+  return validationErrorMessage.value || props.errorMessage?.trim() || '';
 });
 
 const hasErrorState = computed(() => {
   return currentStatus.value === 'error' || Boolean(currentErrorMessage.value);
 });
 
-const showErrorMessage = computed(() => {
-  return hasErrorState.value && (Boolean(currentErrorMessage.value) || Boolean(slots.error));
+const showErrorMessage = useRenderComputed(() => {
+  return (
+    hasErrorState.value &&
+    (Boolean(currentErrorMessage.value) || hasRenderableContent(slots.error?.()))
+  );
 });
 
 const showBottomInfo = computed(() => {
-  return props.helpText || slots.help || showErrorMessage.value;
+  return hasHelp.value || showErrorMessage.value;
 });
 
 const ariaDescribedBy = computed(() => {
@@ -213,7 +218,7 @@ const ariaDescribedBy = computed(() => {
 
   addIds(props.ariaDescribedby);
   addIds(formItem?.describedBy?.value);
-  if (props.helpText || slots.help) addIds(`${groupId.value}-help`);
+  if (hasHelp.value) addIds(`${groupId.value}-help`);
   if (showErrorMessage.value) addIds(`${groupId.value}-error`);
 
   return ids.size > 0 ? Array.from(ids).join(' ') : undefined;

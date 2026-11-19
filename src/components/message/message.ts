@@ -35,6 +35,7 @@ interface MessageRecord {
   vnode: VNode;
   state: 'active' | 'closing' | 'destroyed';
   callbackCalled: boolean;
+  closeCallbacks: Array<() => void>;
   close: () => boolean;
 }
 
@@ -96,7 +97,16 @@ export function createMessageService(appContext?: AppContext): MessageService {
   const notifyClose = (record: MessageRecord): void => {
     if (record.callbackCalled) return;
     record.callbackCalled = true;
-    record.options.onClose?.();
+    let firstError: unknown;
+    // 每一次分组请求都保留自己的完成通知，单个回调失败不能吞掉其余通知。
+    for (const callback of record.closeCallbacks.splice(0)) {
+      try {
+        callback();
+      } catch (error) {
+        firstError ??= error;
+      }
+    }
+    if (firstError !== undefined) throw firstError;
   };
 
   const finalizeRecord = (record: MessageRecord, invokeClose: boolean): void => {
@@ -178,7 +188,13 @@ export function createMessageService(appContext?: AppContext): MessageService {
     closeStaleRecords();
 
     const grouped = findGroupedMessage(options);
-    if (grouped) return { id: grouped.id, close: grouped.close };
+    if (grouped) {
+      if (options.onClose) grouped.closeCallbacks.push(options.onClose);
+      grouped.options.duration = options.duration;
+      const exposed = grouped.vnode.component?.exposed as ExMessageExposed | undefined;
+      exposed?.resetTimer(options.duration);
+      return { id: grouped.id, close: grouped.close };
+    }
     enforceLimitBeforeCreate();
 
     const id = `ex-message-${Date.now()}-${++seed}`;
@@ -208,6 +224,7 @@ export function createMessageService(appContext?: AppContext): MessageService {
       vnode,
       state: 'active',
       callbackCalled: false,
+      closeCallbacks: options.onClose ? [options.onClose] : [],
       close: () => requestClose(record),
     };
 

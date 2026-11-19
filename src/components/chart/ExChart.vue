@@ -741,21 +741,9 @@ watch(
 // 加载状态由模板中的 ExLoading 遮罩统一呈现，避免与 echarts 原生 loading 双重叠加；
 // showLoading/hideLoading 仍作为公开方法保留，供需要时手动调用。
 
-watch(locale, () => {
-  if (!chartInstance.value) return;
-  // 仅更新语言相关配置，保留用户当前图例选择与缩放状态。
-  chartInstance.value.setOption({
-    toolbox: mergeChartComponent(
-      props.option.toolbox,
-      props.showToolbox ? createDefaultToolbox(globalConfig.theme.value, t, controlPalette()) : {},
-      props.showToolbox
-    ),
-  });
-});
-
-// 主题更新只提交样式字段，避免 ECharts 重建运行时配置与交互状态。
+// 语言和主题复用同一份已应用快照，仅更新当前实例中仍由组件管理的字段。
 watch(
-  [() => globalConfig.theme.value, themeOverrides],
+  [() => globalConfig.theme.value, themeOverrides, locale],
   () => {
     if (!chartInstance.value || !appliedThemeStyle) return;
     try {

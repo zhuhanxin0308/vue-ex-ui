@@ -11,6 +11,12 @@
     >
       <slot></slot>
     </div>
+    <div
+      v-if="isFixed"
+      ref="spacerRef"
+      aria-hidden="true"
+      :style="{ width: affixStyle.width, maxWidth: '100%' }"
+    />
   </div>
 </template>
 
@@ -35,10 +41,10 @@ const stickyZIndex = useZIndexLayer('sticky');
 
 const affixRef = ref<HTMLDivElement>();
 const contentRef = ref<HTMLDivElement>();
+const spacerRef = ref<HTMLDivElement>();
 const isFixed = ref(false);
 const affixStyle = ref<Record<string, string | number>>({});
 const placeholderStyle = ref<{
-  width?: string;
   height?: string;
 }>({});
 
@@ -75,26 +81,37 @@ const getTargetRect = (target: HTMLElement | Window) => {
   return (target as HTMLElement).getBoundingClientRect();
 };
 
-const getOffset = (element: HTMLElement, container: HTMLElement | Window) => {
-  const rect = element.getBoundingClientRect();
-  const containerRect = getTargetRect(container);
+const measureLayout = (wrapper: HTMLElement, content: HTMLElement, remeasure: boolean) => {
+  const read = () => ({
+    rect: wrapper.getBoundingClientRect(),
+    height: content.getBoundingClientRect().height,
+  });
+  const spacer = spacerRef.value;
+  if (!remeasure || !spacer) return read();
 
-  return {
-    top: rect.top - containerRect.top,
-    bottom: containerRect.bottom - rect.bottom,
-    left: rect.left - containerRect.left,
-    width: rect.width,
-    height: rect.height,
-  };
+  // 布局变化时让原内容短暂回到普通流，按当前父级约束测量，无需克隆插槽控件。
+  const { position, width } = content.style;
+  spacer.style.display = 'none';
+  content.style.removeProperty('position');
+  content.style.removeProperty('width');
+  try {
+    return read();
+  } finally {
+    content.style.position = position;
+    content.style.width = width;
+    spacer.style.removeProperty('display');
+  }
 };
 
-const updatePosition = () => {
-  if (!affixRef.value || !scrollContainer) return;
+const updatePosition = (remeasure = true) => {
+  if (!affixRef.value || !contentRef.value || !scrollContainer) return;
 
-  const offset = getOffset(affixRef.value, scrollContainer);
-
-  const shouldFixTop = props.offsetTop !== undefined && offset.top <= props.offsetTop;
-  const shouldFixBottom = props.offsetBottom !== undefined && offset.bottom <= props.offsetBottom;
+  const { rect, height } = measureLayout(affixRef.value, contentRef.value, remeasure);
+  const containerRect = getTargetRect(scrollContainer);
+  const offsetTop = props.offsetTop ?? (props.offsetBottom === undefined ? 0 : undefined);
+  const shouldFixTop = offsetTop !== undefined && rect.top - containerRect.top <= offsetTop;
+  const shouldFixBottom =
+    props.offsetBottom !== undefined && containerRect.bottom - rect.bottom <= props.offsetBottom;
 
   const shouldFix = shouldFixTop || shouldFixBottom;
 
@@ -104,12 +121,8 @@ const updatePosition = () => {
   }
 
   if (shouldFix) {
-    const rect = affixRef.value.getBoundingClientRect();
-    const containerRect = getTargetRect(scrollContainer);
-
     placeholderStyle.value = {
-      width: `${rect.width}px`,
-      height: `${contentRef.value?.getBoundingClientRect().height ?? rect.height}px`,
+      height: `${height}px`,
     };
 
     const styles: Record<string, string | number> = {
@@ -135,23 +148,26 @@ const updatePosition = () => {
 
 // 使用 requestAnimationFrame 节流，避免每个 scroll 事件都触发同步布局读取
 let ticking = false;
+let needsRemeasure = false;
 let animationFrameId: number | null = null;
-const scheduleUpdate = () => {
+const scheduleUpdate = (remeasure: boolean) => {
+  needsRemeasure ||= remeasure;
   if (ticking) return;
   ticking = true;
   animationFrameId = requestAnimationFrame(() => {
     ticking = false;
     animationFrameId = null;
-    updatePosition();
+    updatePosition(needsRemeasure);
+    needsRemeasure = false;
   });
 };
 
 const handleScroll = () => {
-  scheduleUpdate();
+  scheduleUpdate(false);
 };
 
 const handleResize = () => {
-  scheduleUpdate();
+  scheduleUpdate(true);
 };
 
 const isScrollable = (element: HTMLElement) => {
@@ -174,8 +190,9 @@ const observeLayout = () => {
   resizeObserver = null;
   if (typeof ResizeObserver === 'undefined') return;
 
-  resizeObserver = new ResizeObserver(scheduleUpdate);
+  resizeObserver = new ResizeObserver(handleResize);
   if (affixRef.value) resizeObserver.observe(affixRef.value);
+  if (affixRef.value?.parentElement) resizeObserver.observe(affixRef.value.parentElement);
   if (contentRef.value) resizeObserver.observe(contentRef.value);
   if (scrollContainer instanceof HTMLElement) resizeObserver.observe(scrollContainer);
 };

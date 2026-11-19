@@ -1,9 +1,10 @@
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { mount, type VueWrapper } from '@vue/test-utils';
-import { h, nextTick } from 'vue';
+import { h, nextTick, ref } from 'vue';
+import { renderToString } from 'vue/server-renderer';
 import ExConfigProvider from '../../../src/components/config-provider/ExConfigProvider.vue';
 import ExHeatmap from '../../../src/components/heatmap/ExHeatmap.vue';
-import { setLocale } from '../../../src/locale';
+import { LOCALE_INJECTION_KEY, setLocale } from '../../../src/locale';
 import type { ExHeatmapProps, HeatmapDataItem } from '../../../src/components/heatmap/types';
 
 describe('ExHeatmap', () => {
@@ -61,6 +62,31 @@ describe('ExHeatmap', () => {
     expect(firstDate.attributes('title')).toBeUndefined();
   });
 
+  it('外部注入的非法语言标记回退到默认日期格式', () => {
+    const wrapper = mount(ExHeatmap, {
+      props: { data, startDate: '2024-01-01', endDate: '2024-01-07' },
+      global: { provide: { [LOCALE_INJECTION_KEY as symbol]: ref('cyber_zh') } },
+    });
+    wrappers.push(wrapper);
+    expect(wrapper.get('[data-date="2024-01-01"]').attributes('aria-label')).toContain('January');
+  });
+
+  it('默认日期范围的首屏跨午夜保持一致，挂载后使用本地日期', async () => {
+    vi.useFakeTimers();
+    try {
+      vi.setSystemTime(new Date(2024, 0, 1, 23, 59));
+      const server = await renderToString(h(ExHeatmap, { data }));
+      vi.setSystemTime(new Date(2024, 0, 2));
+      expect(await renderToString(h(ExHeatmap, { data }))).toBe(server);
+      const wrapper = mount(ExHeatmap, { props: { data } });
+      wrappers.push(wrapper);
+      await nextTick();
+      expect(wrapper.find('[data-date="2024-01-02"]').exists()).toBe(true);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it('范围外补位仅用于对齐完整周，不会伪装成可交互日期', () => {
     const wrapper = mountHeatmap({ startDate: '2024-01-02', endDate: '2024-01-05' });
 
@@ -70,6 +96,8 @@ describe('ExHeatmap', () => {
   });
 
   it('无有效数据时渲染空状态并支持自定义插槽', () => {
+    const outside = mountHeatmap({ data: [{ date: '2023-12-31', value: 1 }] });
+    expect(outside.find('.ex-heatmap__empty').exists()).toBe(true);
     const empty = mountHeatmap({ data: [] }, { empty: '<strong class="custom-empty">空</strong>' });
     expect(empty.find('.custom-empty').exists()).toBe(true);
     expect(empty.find('.ex-heatmap__legend').exists()).toBe(false);
@@ -118,7 +146,11 @@ describe('ExHeatmap', () => {
   });
 
   it('月份和星期标签与网格列对齐，并可分别关闭', async () => {
-    const wrapper = mountHeatmap({ startDate: '2024-01-30', endDate: '2024-02-05' });
+    const wrapper = mountHeatmap({
+      startDate: '2024-01-30',
+      endDate: '2024-02-05',
+      data: [{ date: '2024-01-30', value: 3 }],
+    });
 
     expect(wrapper.findAll('.ex-heatmap__month-slot')).toHaveLength(2);
     expect(wrapper.find('.ex-heatmap__month-grid').text()).toContain('Feb');
@@ -223,12 +255,20 @@ describe('ExHeatmap', () => {
     await wrapper.find('[data-date="2024-01-08"]').trigger('keydown', { key: 'ArrowDown' });
     expect((document.activeElement as HTMLElement).dataset.date).toBe('2024-01-09');
     expect(wrapper.findAll('[tabindex="0"]')).toHaveLength(1);
+    const saturday = wrapper.get<HTMLButtonElement>('[data-date="2024-01-06"]');
+    saturday.element.focus();
+    await saturday.trigger('keydown', { key: 'ArrowDown' });
+    expect(document.activeElement).toBe(saturday.element);
   });
 
   it('日期范围更新后重置失效的漫游焦点', async () => {
     const wrapper = mountHeatmap();
     await wrapper.find('[data-date="2024-01-03"]').trigger('focus');
-    await wrapper.setProps({ startDate: '2024-01-10', endDate: '2024-01-12' });
+    await wrapper.setProps({
+      startDate: '2024-01-10',
+      endDate: '2024-01-12',
+      data: [{ date: '2024-01-10', value: 3 }],
+    });
 
     expect(wrapper.find('[tabindex="0"]').attributes('data-date')).toBe('2024-01-10');
     expect(document.body.querySelector('.ex-heatmap__tooltip')).toBeNull();

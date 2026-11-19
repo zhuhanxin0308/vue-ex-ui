@@ -121,10 +121,12 @@ export function useResponsivePagination(
       observer?.disconnect();
       cancelMeasurement();
       if (!root.value || !itemsRef.value || !measureRef.value) return;
-      observer = new ResizeObserver(scheduleMeasurement);
-      [root.value, itemsRef.value, ...measureRef.value.children].forEach(element =>
-        observer!.observe(element)
-      );
+      if (typeof ResizeObserver !== 'undefined') {
+        observer = new ResizeObserver(scheduleMeasurement);
+        for (const element of [root.value, itemsRef.value, ...measureRef.value.children]) {
+          observer.observe(element);
+        }
+      }
       measure();
     },
     { flush: 'post' }

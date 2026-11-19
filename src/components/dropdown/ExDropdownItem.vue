@@ -16,7 +16,7 @@
   >
     <ExIcon
       v-if="icon"
-      :src="icon"
+      v-bind="iconSource"
       color="currentColor"
       :size="16"
       class="ex-dropdown-item__icon"
@@ -31,6 +31,7 @@
 <script setup lang="ts">
 import { computed, inject, useId } from 'vue';
 import ExIcon from '../icon/ExIcon.vue';
+import { resolveIconSource } from '../icon/icon-utils';
 import { DROPDOWN_INJECTION_KEY } from './context';
 import type { ExDropdownItemEmits, ExDropdownItemProps } from './types';
 
@@ -47,6 +48,7 @@ const emit = defineEmits<ExDropdownItemEmits>();
 const dropdown = inject(DROPDOWN_INJECTION_KEY, null);
 const generatedId = `ex-dropdown-item-${useId()}`;
 const itemId = computed(() => props.id || generatedId);
+const iconSource = computed(() => resolveIconSource(props.icon));
 
 const itemClasses = computed(() => [
   'ex-dropdown-item',

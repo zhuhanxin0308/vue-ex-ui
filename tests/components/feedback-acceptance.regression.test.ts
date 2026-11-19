@@ -73,7 +73,7 @@ it('Popconfirm 所有显示入口发送一致的变化事件', async () => {
   expect(wrapper.emitted('update:visible')).toEqual([[true], [false]]);
 });
 
-it('Popconfirm 旧确认不能关闭 Escape 后重新打开的一轮', async () => {
+it('Popconfirm 旧确认不能关闭主动取消后重新打开的一轮', async () => {
   let resolve!: (value: boolean) => void;
   const pending = new Promise<boolean>(done => {
     resolve = done;
@@ -83,7 +83,7 @@ it('Popconfirm 旧确认不能关闭 Escape 后重新打开的一轮', async () 
   await flush();
   document.querySelectorAll<HTMLButtonElement>('.ex-popconfirm__footer button')[1]!.click();
   await flush();
-  document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+  wrapper.vm.hide();
   await flush();
   wrapper.vm.show();
   await flush();

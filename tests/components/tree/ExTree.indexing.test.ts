@@ -58,7 +58,7 @@ describe('ExTree 大树计算及状态一致性', () => {
     wrapper.unmount();
   });
 
-  it('禁用和不可勾选节点不参与半选计数，其可勾选后代仍参与级联', async () => {
+  it('禁用分支已选值不参与上级汇总，级联操作保留分支原值', async () => {
     const data: TreeNode[] = [
       {
         key: 'root',
@@ -79,14 +79,38 @@ describe('ExTree 大树计算及状态一致性', () => {
       props: { data, checkable: true, defaultCheckedKeys: ['nested'] },
     });
     const methods = wrapper.vm as unknown as ExTreeExposed;
-    expect(methods.getHalfCheckedNodes().map(node => node.key)).toEqual(['root']);
+    expect(methods.getHalfCheckedNodes()).toEqual([]);
+    expect(methods.requestNodeCheck('nested', false)).toBe(false);
     methods.requestNodeCheck('root', true);
     await nextTick();
     expect(methods.getCheckedNodes().map(node => node.key)).toEqual(['nested', 'root', 'other']);
     expect(methods.getHalfCheckedNodes()).toEqual([]);
     methods.requestNodeCheck('root', false);
     await nextTick();
-    expect(methods.getCheckedNodes()).toEqual([]);
+    expect(methods.getCheckedNodes().map(node => node.key)).toEqual(['nested']);
+    wrapper.unmount();
+  });
+
+  it('中继分组参与聚合，重复键保留首次出现的节点', () => {
+    const data = [
+      {
+        key: 'r',
+        label: '根',
+        children: [
+          { key: 'a', label: '甲' },
+          { key: 'g', label: '分组', checkable: false, children: [{ key: 'b', label: '乙' }] },
+          { key: 'a', label: '重复' },
+        ],
+      },
+    ];
+    const wrapper = mount(ExTree, { props: { data, checkable: true } });
+    const methods = wrapper.vm as unknown as ExTreeExposed;
+    methods.requestNodeCheck('a', true);
+    expect(methods.getCheckedNodes().map(node => node.label)).toEqual(['甲']);
+    expect(methods.getHalfCheckedNodes().map(node => node.key)).toEqual(['r']);
+    methods.requestNodeCheck('b', true);
+    expect(methods.getCheckedNodes().map(node => node.key)).toEqual(['a', 'b', 'r']);
+    expect(methods.getHalfCheckedNodes()).toEqual([]);
     wrapper.unmount();
   });
 

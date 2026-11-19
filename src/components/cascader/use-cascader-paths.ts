@@ -5,6 +5,7 @@ import type { CascaderOption } from './types';
 interface CascaderPathProps {
   options: CascaderOption[];
   modelValue?: Array<string | number> | null;
+  resetRevision: () => number | undefined;
 }
 
 /** 浏览路径可独立展开；确认路径按受控模式提交，禁用状态沿完整祖先链传播。 */
@@ -14,6 +15,7 @@ export function useCascaderPaths(props: CascaderPathProps) {
   >({
     controlledValue: () => (props.modelValue === undefined ? undefined : (props.modelValue ?? [])),
     defaultValue: () => [],
+    resetRevision: props.resetRevision,
     clone: value => [...value],
   });
   const activePath = ref<Array<string | number>>([...selectedPath.value]);

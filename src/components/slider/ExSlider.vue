@@ -282,6 +282,7 @@ const thumbStartRef = ref<HTMLDivElement>();
 
 // State
 const currentValue = ref<number | [number, number]>(props.modelValue ?? 0);
+let overlappingStart: number | undefined;
 let dragRequestedValue: number | [number, number] | undefined;
 const isDragging = ref(false);
 const isDraggingStart = ref(false);
@@ -306,6 +307,7 @@ const sliderClasses = computed(() => {
   ];
 
   if (disabled.value) classes.push('ex-slider--disabled');
+  if (formItem?.status?.value) classes.push(`ex-slider--${formItem.status.value}`);
   if (props.range) classes.push('ex-slider--range');
   if (props.reverse) classes.push('ex-slider--reverse');
   if (isDragging.value || isDraggingStart.value || isDraggingEnd.value) {
@@ -524,7 +526,7 @@ const updateValue = (newValue: number | [number, number], commit = true) => {
 };
 
 const handleTrackClick = (event: MouseEvent | TouchEvent) => {
-  if (!interactive.value) return;
+  if (!interactive.value || ('button' in event && event.button !== 0)) return;
 
   event.preventDefault();
   const { x, y } = getPositionFromEvent(event);
@@ -547,7 +549,7 @@ const handleTrackClick = (event: MouseEvent | TouchEvent) => {
 };
 
 const handleThumbMouseDown = (event: MouseEvent | TouchEvent, thumbIndex: number) => {
-  if (!interactive.value) return;
+  if (!interactive.value || ('button' in event && event.button !== 0)) return;
 
   event.preventDefault();
   event.stopPropagation();
@@ -557,6 +559,8 @@ const handleThumbMouseDown = (event: MouseEvent | TouchEvent, thumbIndex: number
   if (!props.range) {
     isDragging.value = true;
   } else {
+    const [start, end] = currentValue.value as [number, number];
+    overlappingStart = start === end ? start : undefined;
     if (thumbIndex === 0) {
       isDraggingStart.value = true;
     } else {
@@ -587,6 +591,14 @@ const handleMouseMove = (event: MouseEvent | TouchEvent) => {
   } else {
     const [start, end] = currentValue.value as [number, number];
 
+    // 重叠时两端共用同一个命中区域，首次有效移动决定实际拖动哪一端。
+    if (overlappingStart !== undefined) {
+      if (value === overlappingStart) return;
+      activeThumbIndex.value = value < overlappingStart ? 0 : 1;
+      isDraggingStart.value = activeThumbIndex.value === 0;
+      isDraggingEnd.value = !isDraggingStart.value;
+      overlappingStart = undefined;
+    }
     if (activeThumbIndex.value === 0) {
       updateValue([Math.min(value, end), end], false);
     } else {
@@ -596,6 +608,7 @@ const handleMouseMove = (event: MouseEvent | TouchEvent) => {
 };
 
 function stopDragging() {
+  overlappingStart = undefined;
   isDragging.value = false;
   isDraggingStart.value = false;
   isDraggingEnd.value = false;
@@ -689,6 +702,7 @@ watch(
   () => formItem?.resetRevision?.value,
   () => {
     stopDragging();
+    if (props.modelValue === undefined) currentValue.value = 0;
     synchronizeValue();
   },
   { flush: 'post' }

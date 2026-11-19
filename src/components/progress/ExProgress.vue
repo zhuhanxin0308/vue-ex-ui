@@ -325,8 +325,7 @@
 <script setup lang="ts">
 import { normalizeCustomClass } from '../../composables/useCustomClass';
 import { computed, ref, onMounted, onBeforeUnmount, watch } from 'vue';
-import type { ExProgressProps, ExProgressEmits, ExProgressExposed } from './types';
-import { useLocale } from '../../locale';
+import type { ExProgressProps, ExProgressExposed } from './types';
 import { generateId } from '../../utils/id';
 import ExIcon from '../icon/ExIcon.vue';
 import { useAnimation } from '../config-provider/composables';
@@ -361,11 +360,6 @@ const props = withDefaults(defineProps<ExProgressProps>(), {
   waveAnimated: true,
 });
 
-// 定义事件
-defineEmits<ExProgressEmits>();
-
-// 国际化
-const { t: _t } = useLocale('progress');
 const progressRef = ref<HTMLDivElement>();
 const animationEnabled = useAnimation();
 

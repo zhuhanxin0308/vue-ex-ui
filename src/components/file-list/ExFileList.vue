@@ -523,6 +523,7 @@ import ExTree from '../tree/ExTree.vue';
 import ExFileListActions from './ExFileListActions.vue';
 import { useControllableState } from '../../composables/useControllableState';
 import { useLocale } from '../../locale';
+import { createDateFormatter } from '../../locale/date-formatter';
 import { formatFileSize } from '../../utils/format';
 import { logger } from '../../utils/logger';
 import {
@@ -759,15 +760,14 @@ const viewOptions = computed(() => [
   { value: 'tree' as const, label: t('tree'), icon: 'node-tree' },
 ]);
 
-const dateFormatter = computed(
-  () =>
-    new Intl.DateTimeFormat(locale.value, {
-      year: 'numeric',
-      month: '2-digit',
-      day: '2-digit',
-      hour: '2-digit',
-      minute: '2-digit',
-    })
+const dateFormatter = computed(() =>
+  createDateFormatter(locale.value, {
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+  })
 );
 
 function hasAvailableActions(file: FileItem): boolean {

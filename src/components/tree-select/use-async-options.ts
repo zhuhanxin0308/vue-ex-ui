@@ -36,7 +36,11 @@ interface AsyncOptions<T extends AsyncOption<T>> {
 /** 共享异步生命周期；树选择按值识别，级联选择按完整路径识别。 */
 export function useAsyncOptions<T extends AsyncOption<T>>(options: AsyncOptions<T>) {
   const safeData = computed(() =>
-    pruneTreeCycles(options.data(), options.identity === 'value' ? 'TreeSelect' : 'Cascader')
+    pruneTreeCycles(
+      options.data(),
+      options.identity === 'value' ? 'TreeSelect' : 'Cascader',
+      options.identity === 'value' && !options.loader() ? node => node.value : undefined
+    )
   );
   const branches = shallowRef(new Map<string, { source: T; children: T[] }>());
   const states = shallowRef(new Map<string, OptionLoadState>());

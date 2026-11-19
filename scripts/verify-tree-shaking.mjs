@@ -7,25 +7,36 @@ import browserTargets from '../browser-targets.json' with { type: 'json' };
 const projectRoot = resolve(import.meta.dirname, '..');
 const fixture = resolve(projectRoot, 'tests/fixtures/tree-shaking/root-named-import.ts');
 
-const result = await build({
-  configFile: false,
-  logLevel: 'error',
-  plugins: [vue()],
-  build: {
-    write: false,
-    minify: false,
-    target: browserTargets,
-    cssTarget: browserTargets,
-    lib: {
-      entry: fixture,
-      formats: ['es'],
-      fileName: () => 'fixture.js',
+const buildFixture = async entry =>
+  build({
+    configFile: false,
+    logLevel: 'error',
+    plugins: [vue()],
+    build: {
+      write: false,
+      minify: false,
+      target: browserTargets,
+      cssTarget: browserTargets,
+      lib: {
+        entry,
+        formats: ['es'],
+        fileName: () => 'fixture.js',
+      },
+      rollupOptions: {
+        external: [
+          'vue',
+          'vue/server-renderer',
+          'vue-i18n',
+          'echarts',
+          'qrcode',
+          'jsbarcode',
+          'lunar-javascript',
+        ],
+      },
     },
-    rollupOptions: {
-      external: ['vue', 'vue-i18n', 'echarts', 'qrcode', 'jsbarcode', 'lunar-javascript'],
-    },
-  },
-});
+  });
+
+const result = await buildFixture(fixture);
 
 const buildResults = Array.isArray(result) ? result : [result];
 const outputs = buildResults.flatMap(item => item.output);
@@ -66,3 +77,21 @@ if (!bundledCode.includes('ExButton')) {
 process.stdout.write(
   `tree-shaking fixture: ${byteLength} JS bytes, ${cssByteLength} CSS bytes, 1 component\n`
 );
+
+// 纯视觉钩子必须在真实构建中移除整套语言包，防止运行时单测掩盖打包回归。
+const visualResult = await buildFixture(
+  resolve(projectRoot, 'tests/fixtures/tree-shaking/visual-config-import.ts')
+);
+const visualOutputs = (Array.isArray(visualResult) ? visualResult : [visualResult]).flatMap(
+  item => item.output
+);
+const retainedLocales = visualOutputs
+  .filter(item => item.type === 'chunk')
+  .flatMap(chunk => Object.entries(chunk.modules))
+  .filter(
+    ([id, module]) => /\/src\/locale\/(?:en-US|zh-CN)\.ts$/.test(id) && module.renderedLength > 0
+  );
+if (retainedLocales.length) {
+  throw new Error(`视觉配置仍保留语言包：${retainedLocales.map(([id]) => id).join('、')}`);
+}
+process.stdout.write('visual config fixture: no locale dictionaries\n');

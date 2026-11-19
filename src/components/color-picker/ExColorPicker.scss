@@ -114,6 +114,10 @@
     transform: rotate(180deg);
   }
 
+  &.is-readonly &__trigger {
+    cursor: default;
+  }
+
   &.is-disabled &__trigger {
     cursor: not-allowed;
     opacity: 0.6;

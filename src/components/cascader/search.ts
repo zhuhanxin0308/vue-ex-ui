@@ -7,8 +7,11 @@ export interface CascaderSearchResult {
   disabled: boolean;
 }
 
-/** 使用显式栈遍历叶子路径，避免深层组织数据耗尽 JavaScript 调用栈。 */
-export function collectCascaderLeafPaths(options: CascaderOption[]): CascaderSearchResult[] {
+/** 使用显式栈遍历所有可选择路径，避免深层组织数据耗尽调用栈。 */
+export function collectCascaderSearchPaths(
+  options: CascaderOption[],
+  includeBranches: boolean
+): CascaderSearchResult[] {
   interface Frame {
     options: CascaderOption[];
     index: number;
@@ -30,12 +33,11 @@ export function collectCascaderLeafPaths(options: CascaderOption[]): CascaderSea
     labels.push(option.label);
     values.push(option.value);
     const disabled = frame.disabled || Boolean(option.disabled);
+    if (includeBranches || (!option.children?.length && option.isLeaf !== false))
+      results.push({ labels: [...labels], values: [...values], disabled });
     if (option.children?.length) {
       frames.push({ disabled, options: option.children, index: 0 });
     } else {
-      // 只有输出叶子结果时复制路径，深链不再保留每一层的完整祖先副本。
-      if (option.isLeaf !== false)
-        results.push({ labels: [...labels], values: [...values], disabled });
       labels.pop();
       values.pop();
     }

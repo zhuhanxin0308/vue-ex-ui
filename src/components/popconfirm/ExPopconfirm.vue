@@ -4,6 +4,7 @@
     :placement="placement"
     :trigger="trigger"
     :disabled="disabled"
+    :close-delay="effectiveConfirmLoading ? 0 : undefined"
     :aria-label="title || t('confirm')"
     :custom-class="popupClasses"
     :custom-style="popupStyle"
@@ -23,8 +24,7 @@
           >
             <slot name="icon">
               <ExIcon
-                :icon="customIconUrl ? undefined : defaultIcon"
-                :src="customIconUrl"
+                v-bind="iconSource"
                 :size="20"
                 aria-hidden="true"
               />
@@ -54,7 +54,7 @@
           <ExButton
             v-if="showCancel"
             size="small"
-            :disabled="confirmPending"
+            :disabled="effectiveConfirmLoading"
             @click.stop="handleCancel"
           >
             {{ cancelText || t('cancel') }}
@@ -81,12 +81,15 @@ import { useLocale } from '../../locale';
 import ExPopover from '../popover/ExPopover.vue';
 import ExButton from '../button/ExButton.vue';
 import ExIcon from '../icon/ExIcon.vue';
+import { resolveIconSource } from '../icon/icon-utils';
+import { useControllableState } from '../../composables/useControllableState';
 
 defineOptions({
   name: 'ExPopconfirm',
 });
 
 const props = withDefaults(defineProps<ExPopconfirmProps>(), {
+  visible: undefined,
   type: 'warning',
   okType: 'primary',
   showCancel: true,
@@ -101,11 +104,24 @@ const emit = defineEmits<ExPopconfirmEmits>();
 
 const { t } = useLocale('dialog');
 
-const popoverVisible = ref(false);
 const confirmPending = ref(false);
 let confirmationRevision = 0;
 let disposed = false;
 const effectiveConfirmLoading = computed(() => props.confirmLoading || confirmPending.value);
+const visibilityState = useControllableState({
+  controlledValue: () => props.visible,
+  defaultValue: false,
+  onChange: visible => emit('update:visible', visible),
+});
+const requestVisibility = (visible: boolean, force = false) => {
+  if (disposed || (visible && props.disabled)) return;
+  if (!visible && effectiveConfirmLoading.value && !force) return;
+  if (visible !== visibilityState.value.value) visibilityState.request(visible);
+};
+const popoverVisible = computed({
+  get: () => !props.disabled && visibilityState.value.value,
+  set: visible => requestVisibility(visible),
+});
 
 // 计算属性
 const popconfirmClasses = computed(() => {
@@ -133,16 +149,14 @@ const defaultIcon = computed(() => {
   return iconMap[props.type] || iconMap.default;
 });
 
-// 允许通过 icon prop 传入自定义图片 URL
-const customIconUrl = computed(() => props.icon);
+const iconSource = computed(() => resolveIconSource(props.icon, defaultIcon.value));
 
 // 事件处理
 watch(
   popoverVisible,
-  visible => {
+  () => {
     confirmationRevision += 1;
     confirmPending.value = false;
-    emit('update:visible', visible);
   },
   { flush: 'sync' }
 );
@@ -150,7 +164,7 @@ watch(
 watch(
   () => props.disabled,
   disabled => {
-    if (disabled) popoverVisible.value = false;
+    if (disabled) requestVisibility(false, true);
   }
 );
 
@@ -178,7 +192,7 @@ const handleConfirm = async () => {
 
     if (disposed || revision !== confirmationRevision || !popoverVisible.value) return;
     emit('confirm');
-    popoverVisible.value = false;
+    requestVisibility(false, true);
   } catch (error) {
     if (!disposed && revision === confirmationRevision) emit('confirm-error', error);
   } finally {
@@ -187,7 +201,7 @@ const handleConfirm = async () => {
 };
 
 const handleCancel = () => {
-  if (confirmPending.value) return;
+  if (effectiveConfirmLoading.value) return;
   emit('cancel');
   popoverVisible.value = false;
 };
@@ -199,7 +213,8 @@ const show = () => {
 };
 
 const hide = () => {
-  popoverVisible.value = false;
+  // 显式 API 关闭保留调用方取消请求的控制权，只有偶发交互被异步守卫拦截。
+  requestVisibility(false, true);
 };
 
 defineExpose<ExPopconfirmExposed>({

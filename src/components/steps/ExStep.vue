@@ -1,103 +1,104 @@
 <template>
-  <div
-    ref="stepRef"
-    :class="stepClasses"
-    :style="stepStyles"
-    :role="isClickable ? 'button' : undefined"
-    :tabindex="isClickable && !props.disabled ? 0 : undefined"
-    :aria-current="isCurrent ? 'step' : undefined"
-    :aria-disabled="props.disabled"
-    @click="handleClick"
-    @keydown="handleKeydown"
-  >
-    <!-- 步骤头部 -->
-    <div class="ex-step__head">
-      <!-- 图标容器 -->
-      <div
-        class="ex-step__icon"
-        :style="iconStyles"
-      >
-        <!-- 进度点模式：不显示任何内容，只显示圆点 -->
-        <template v-if="stepsContext.progressDot.value">
-          <!-- 空的，只显示圆点边框 -->
-        </template>
-        <!-- 普通模式：显示图标或数字 -->
-        <template v-else>
-          <!-- 自定义图标插槽 -->
-          <slot name="icon">
-            <!-- 默认图标：根据状态显示 -->
-            <template v-if="statusIcon">
-              <ExIcon
-                :icon="statusIcon"
-                class="ex-step__icon-image"
-                aria-hidden="true"
-              />
-            </template>
-            <!-- 默认显示步骤数字 -->
-            <span
-              v-else
-              class="ex-step__icon-number"
-            >
-              {{ stepNumber }}
-            </span>
-          </slot>
-        </template>
+  <StepContent v-slot="{ rootScope }">
+    <div
+      ref="stepRef"
+      :data-ex-step-index="stepIndex"
+      :data-ex-step-count="stepCount"
+      :class="stepClasses"
+      :style="stepStyles"
+      :role="isClickable ? 'button' : undefined"
+      :tabindex="isClickable && !props.disabled ? 0 : undefined"
+      :aria-current="isCurrent ? 'step' : undefined"
+      :aria-disabled="props.disabled || undefined"
+      v-bind="{ ...$attrs, ...rootScope }"
+      @click="handleClick"
+      @keydown="handleKeydown"
+    >
+      <!-- 步骤头部 -->
+      <div class="ex-step__head">
+        <div
+          class="ex-step__icon"
+          :style="iconStyles"
+        >
+          <!-- 普通模式显示图标或数字，进度点模式只保留外层圆点。 -->
+          <template v-if="!stepsContext?.progressDot.value">
+            <StepOutlet name="icon">
+              <template v-if="statusIcon">
+                <ExIcon
+                  :icon="statusIcon"
+                  class="ex-step__icon-image"
+                  aria-hidden="true"
+                />
+              </template>
+              <span
+                v-else
+                class="ex-step__icon-number"
+              >
+                {{ stepNumber }}
+              </span>
+            </StepOutlet>
+          </template>
+        </div>
+        <div
+          v-if="!isLastStep"
+          class="ex-step__line"
+          :class="lineClasses"
+          :style="lineStyles"
+        />
       </div>
 
-      <!-- 连接线 -->
-      <div
-        v-if="!isLastStep"
-        class="ex-step__line"
-        :class="lineClasses"
-        :style="lineStyles"
-      />
-    </div>
-
-    <!-- 步骤内容 -->
-    <div class="ex-step__content">
-      <!-- 标题 -->
-      <div
-        class="ex-step__title"
-        :style="titleStyles"
-      >
-        <slot name="title">
-          {{ title }}
-        </slot>
-      </div>
-
-      <!-- 子标题 -->
-      <div
-        v-if="subtitle || $slots.subtitle"
-        class="ex-step__subtitle"
-      >
-        <slot name="subtitle">
-          {{ subtitle }}
-        </slot>
-      </div>
-
-      <!-- 描述 -->
-      <div
-        v-if="description || $slots.description"
-        class="ex-step__description"
-      >
-        <slot name="description">
-          {{ description }}
-        </slot>
+      <!-- 步骤内容 -->
+      <div class="ex-step__content">
+        <div
+          class="ex-step__title"
+          :style="titleStyles"
+        >
+          <StepOutlet name="title">
+            {{ title }}
+          </StepOutlet>
+        </div>
+        <div
+          v-if="subtitle || $slots.subtitle"
+          class="ex-step__subtitle"
+        >
+          <StepOutlet name="subtitle">
+            {{ subtitle }}
+          </StepOutlet>
+        </div>
+        <div
+          v-if="description || $slots.description"
+          class="ex-step__description"
+        >
+          <StepOutlet name="description">
+            {{ description }}
+          </StepOutlet>
+        </div>
       </div>
     </div>
-  </div>
+  </StepContent>
 </template>
 
 <script setup lang="ts">
 import { normalizeCustomClass } from '../../composables/useCustomClass';
-import { computed, inject, onBeforeUnmount, ref } from 'vue';
+import {
+  computed,
+  getCurrentInstance,
+  inject,
+  onBeforeUnmount,
+  onMounted,
+  ref,
+  useSlots,
+} from 'vue';
 import type { ExStepProps, ExStepExposed } from './types';
-import { stepsContextKey } from './context';
+import { stepsContextKey, stepsHydrationKey } from './context';
+import { StandaloneStepContent, stepContentKey } from './ordered-slot';
+import { createStepOutlet } from './step-outlet';
 import ExIcon from '../icon/ExIcon.vue';
 import { isComposingKeyboardEvent } from '../../utils/keyboard';
 
 defineOptions({
   name: 'ExStep',
+  inheritAttrs: false,
 });
 
 const props = withDefaults(defineProps<ExStepProps>(), {
@@ -108,28 +109,68 @@ const props = withDefaults(defineProps<ExStepProps>(), {
 const stepRef = ref<HTMLDivElement>();
 
 // 从父组件注入上下文
-const stepsContext = inject(stepsContextKey)!;
+const stepsContext = inject(stepsContextKey, null);
 
 // 注册步骤（索引由父组件按文档顺序实时计算，支持动态增删/重排）
 const uid = Symbol('ex-step');
-stepsContext.registerStep(uid, () => stepRef.value ?? null);
-const stepIndex = computed(() => stepsContext.getStepIndex(uid));
+const slots = useSlots();
+const getSlotNames = () =>
+  stepsContext?.progressDot.value
+    ? ['title', 'subtitle', 'description']
+    : ['icon', 'title', 'subtitle', 'description'];
+const { StepContent, StepOutlet } = inject(stepContentKey, null)?.(uid, slots, getSlotNames) ?? {
+  StepContent: StandaloneStepContent,
+  StepOutlet: createStepOutlet(slots).StepOutlet,
+};
+const renderedElement = getCurrentInstance()?.vnode.el;
+const hydratedElement =
+  typeof HTMLElement !== 'undefined' && renderedElement instanceof HTMLElement
+    ? renderedElement
+    : null;
+stepsContext?.registerStep(
+  uid,
+  () => stepRef.value ?? hydratedElement,
+  () => props.disabled
+);
+// 传送目标和异步包装可以比其相邻步骤先水合，首帧复用服务端已求得的位置。
+const initialIndex = hydratedElement?.dataset.exStepIndex;
+const initialCount = hydratedElement?.dataset.exStepCount;
+const initialLast = hydratedElement?.classList.contains('ex-step--last');
+const ownHydration = ref(initialIndex !== undefined);
+const parentHydration = inject(stepsHydrationKey, null);
+const useInitialPosition = computed(
+  () => initialIndex !== undefined && (ownHydration.value || parentHydration?.value)
+);
+onMounted(() => {
+  ownHydration.value = false;
+});
+const stepIndex = computed(() =>
+  useInitialPosition.value ? Number(initialIndex) : (stepsContext?.getStepIndex(uid) ?? 0)
+);
+const stepCount = computed(() =>
+  useInitialPosition.value && initialCount !== undefined
+    ? Number(initialCount)
+    : (stepsContext?.stepCount.value ?? 1)
+);
 
 // 组件卸载时注销
 onBeforeUnmount(() => {
-  stepsContext.unregisterStep(uid);
+  stepsContext?.unregisterStep(uid);
 });
 
 // 计算属性
 const stepNumber = computed(() => stepIndex.value + 1);
 
-const isCurrent = computed(() => stepIndex.value === stepsContext.current.value);
+const isCurrent = computed(() => stepIndex.value === stepsContext?.current.value);
 
-const isLastStep = computed(() => stepIndex.value === stepsContext.stepCount.value - 1);
+const isLastStep = computed(() =>
+  useInitialPosition.value ? initialLast : stepIndex.value === stepCount.value - 1
+);
 
 const currentStatus = computed(() => {
   // 优先使用步骤自己的状态
   if (props.status) return props.status;
+  if (!stepsContext) return 'wait';
 
   // 根据当前步骤索引判断状态
   if (stepIndex.value < stepsContext.current.value) {
@@ -145,7 +186,7 @@ const isClickable = computed(() => {
   // 优先使用步骤自己的clickable属性
   if (props.clickable !== undefined) return props.clickable;
   // 否则使用父组件的clickable属性
-  return stepsContext.clickable.value;
+  return stepsContext?.clickable.value ?? false;
 });
 
 const stepClasses = computed(() => {
@@ -233,12 +274,6 @@ const statusIcon = computed(() => {
       return 'check-line';
     case 'error':
       return 'close-line';
-    case 'process':
-      // 进行中状态显示加载图标（如果是点模式）或数字
-      return stepsContext.progressDot.value ? 'loader-4-line' : '';
-    case 'wait':
-      // 等待状态默认显示数字
-      return '';
     default:
       return '';
   }
@@ -247,7 +282,7 @@ const statusIcon = computed(() => {
 // 事件处理
 const handleClick = () => {
   if (!props.disabled && isClickable.value) {
-    stepsContext.onStepClick(stepIndex.value, props.clickable === true);
+    stepsContext?.onStepClick(stepIndex.value, props.clickable === true);
   }
 };
 

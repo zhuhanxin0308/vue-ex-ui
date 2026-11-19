@@ -209,8 +209,10 @@ describe('TimePicker 独立时间范围', () => {
     await wrapper.get('[role="combobox"]').trigger('click');
     expect(wrapper.get('[data-unit="h"][data-value="1"]').attributes('aria-selected')).toBe('true');
     await wrapper.get('[data-unit="h"][data-value="4"]').trigger('click');
+    await wrapper.get('.ex-time-picker__confirm').trigger('click');
     expect(wrapper.emitted('update:modelValue')?.at(-1)).toEqual(['03:02:04']);
     await wrapper.setProps({ format: 'invalid', modelValue: '01:02:03' });
+    await wrapper.get('[role="combobox"]').trigger('click');
     expect(wrapper.findAll('.ex-time-picker__column')).toHaveLength(3);
     await wrapper.get('.ex-time-picker__confirm').trigger('click');
     expect(wrapper.emitted('update:modelValue')?.at(-1)).toEqual(['01:02:03']);

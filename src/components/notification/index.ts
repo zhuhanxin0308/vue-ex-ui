@@ -5,7 +5,12 @@
 
 import ExNotificationComponent from './ExNotification.vue';
 import { withInstall, type InstallableComponent } from '../../utils/install';
-import { createNotificationService, notification, NOTIFICATION_SERVICE_KEY } from './notification';
+import {
+  createNotificationService,
+  disposeNotificationService,
+  notification,
+  NOTIFICATION_SERVICE_KEY,
+} from './notification';
 import type {
   ExNotificationProps,
   ExNotificationEmits,
@@ -35,7 +40,7 @@ ExNotification.install = app => {
   const service = createNotificationService(app._context);
   app.config.globalProperties.$notification = service;
   app.provide(NOTIFICATION_SERVICE_KEY, service);
-  app.onUnmount(() => service.closeAll());
+  app.onUnmount(() => disposeNotificationService(service));
 };
 
 // 导出类型

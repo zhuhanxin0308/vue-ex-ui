@@ -51,6 +51,26 @@ function pressTab(target: HTMLElement, shiftKey = false): void {
 }
 
 describe('浮层遵守原生 fieldset 禁用语义', () => {
+  it('iframe 内的焦点圈闭只监听所属文档并在释放时解绑', () => {
+    const iframe = document.createElement('iframe');
+    document.body.append(iframe);
+    const owner = iframe.contentDocument!;
+    const root = owner.createElement('section');
+    root.innerHTML = '<button>首项</button><button>末项</button>';
+    owner.body.append(root);
+    const [first, last] = Array.from(root.querySelectorAll('button'));
+    const release = createFocusTrap(root);
+    disposers.push(release);
+    pressTab(last!);
+    expect(owner.activeElement).toBe(first);
+    pressTab(first!, true);
+    expect(owner.activeElement).toBe(last);
+    release();
+    const event = new KeyboardEvent('keydown', { key: 'Tab', bubbles: true, cancelable: true });
+    last!.dispatchEvent(event);
+    expect(event.defaultPrevented).toBe(false);
+  });
+
   it('双向焦点循环跳过继承禁用的输入框', () => {
     const root = mountContent(`
       <fieldset disabled><input id="disabled-field"></fieldset>

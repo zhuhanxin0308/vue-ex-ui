@@ -96,6 +96,8 @@ import { FORM_CONTEXT_INJECTION_KEY, provideFormItem } from './use-form-item';
 import ExIcon from '../icon/ExIcon.vue';
 import { useI18n } from '../../locale';
 import { deepClone } from '../../utils/clone';
+import { useRenderComputed } from '../../composables/useRenderComputed';
+import { hasRenderableContent } from '../../utils/vnode';
 import { equalValueSnapshot } from '../../utils/value-snapshot';
 import { generateId } from '../../utils/id';
 import { useComponentSize } from '../config-provider';
@@ -203,8 +205,8 @@ const isRequired = computed(() => {
   return getRules().some(rule => rule.required);
 });
 
-const showLabel = computed(() => {
-  return !!(props.label || slots.label);
+const showLabel = useRenderComputed(() => {
+  return Boolean(props.label) || hasRenderableContent(slots.label?.());
 });
 
 const showRequiredMark = computed(() => {

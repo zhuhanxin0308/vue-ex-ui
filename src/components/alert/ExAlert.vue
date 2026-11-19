@@ -17,8 +17,7 @@
       >
         <slot name="icon">
           <ExIcon
-            :icon="builtinIcon"
-            :src="customIconUrl"
+            v-bind="iconSource"
             :size="20"
             aria-hidden="true"
           />
@@ -73,8 +72,7 @@
           </span>
           <ExIcon
             v-else
-            :icon="builtinCloseIcon"
-            :src="customCloseIconUrl"
+            v-bind="closeIconSource"
             :size="16"
             aria-hidden="true"
           />
@@ -88,6 +86,7 @@
 import { ref, computed } from 'vue';
 import type { AlertVariant, ExAlertProps, ExAlertEmits, ExAlertInstance } from './types';
 import ExIcon from '../icon/ExIcon.vue';
+import { resolveIconSource } from '../icon/icon-utils';
 import { useI18n } from '../../locale';
 import { useComponentSize } from '../config-provider/composables';
 
@@ -129,11 +128,8 @@ const normalizedVariant = computed(() =>
   ALERT_VARIANTS.has(props.variant) ? props.variant : 'standard'
 );
 
-// props.icon / props.closeIcon 允许传入自定义图片 URL，否则使用内置图标
-const builtinIcon = computed(() => (props.icon ? undefined : iconMap[normalizedType.value]));
-const customIconUrl = computed(() => props.icon);
-const builtinCloseIcon = computed(() => (props.closeIcon ? undefined : 'close-line'));
-const customCloseIconUrl = computed(() => props.closeIcon);
+const iconSource = computed(() => resolveIconSource(props.icon, iconMap[normalizedType.value]));
+const closeIconSource = computed(() => resolveIconSource(props.closeIcon, 'close-line'));
 
 // 样式类
 const alertClasses = computed(() => {

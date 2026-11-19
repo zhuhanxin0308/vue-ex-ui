@@ -58,6 +58,17 @@ describe('输入格式化工具', () => {
     expect(parseCurrency('1,234,567.89')).toBe('1234567.89');
   });
 
+  it('金额输入保留末尾小数点并在分组前规整前导零', () => {
+    expect(formatCurrency('1234.')).toBe('1,234.');
+    expect(formatCurrency('-0001234.')).toBe('-1,234.');
+    expect(formatCurrency('0001234.50')).toBe('1,234.50');
+    expect(formatCurrency('0000')).toBe('0');
+    expect(formatCurrency('000.05')).toBe('0.05');
+    expect(formatCurrency('.')).toBe('.');
+    expect(formatCurrency('-.')).toBe('-.');
+    expect(parseCurrency(formatCurrency('1234.')) + '5').toBe('1234.5');
+  });
+
   it('格式化和解析百分比并限制范围', () => {
     expect(formatPercent('')).toBe('');
     expect(formatPercent('abc')).toBe('');

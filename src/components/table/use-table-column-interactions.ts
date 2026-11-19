@@ -19,6 +19,7 @@ type ColumnEmit = <K extends keyof TableColumnInteractionEmits>(
 ) => void;
 
 interface ResizeSession {
+  document: Document;
   key: string;
   pointerId: number;
   startX: number;
@@ -261,11 +262,9 @@ export function useTableColumnInteractions(
   const resizingKey = ref<string>();
   let session: ResizeSession | undefined;
   const detach = () => {
-    if (typeof document !== 'undefined') {
-      document.removeEventListener('pointermove', onMove);
-      document.removeEventListener('pointerup', onEnd);
-      document.removeEventListener('pointercancel', onCancel);
-    }
+    session?.document.removeEventListener('pointermove', onMove);
+    session?.document.removeEventListener('pointerup', onEnd);
+    session?.document.removeEventListener('pointercancel', onCancel);
     session = undefined;
     resizingKey.value = undefined;
   };
@@ -305,6 +304,7 @@ export function useTableColumnInteractions(
       measuredMinimums.value = { ...measuredMinimums.value, [column.key]: minimum };
     event.preventDefault();
     session = {
+      document: header.ownerDocument,
       key: column.key,
       pointerId: event.pointerId,
       startX: event.clientX,
@@ -313,9 +313,9 @@ export function useTableColumnInteractions(
       direction: getComputedStyle(header).direction === 'rtl' ? -1 : 1,
     };
     resizingKey.value = column.key;
-    document.addEventListener('pointermove', onMove);
-    document.addEventListener('pointerup', onEnd);
-    document.addEventListener('pointercancel', onCancel);
+    session.document.addEventListener('pointermove', onMove);
+    session.document.addEventListener('pointerup', onEnd);
+    session.document.addEventListener('pointercancel', onCancel);
   };
   watch([index, () => props.loading, () => props.resizableColumns], () => {
     const column = session ? index.value.get(session.key)?.column : undefined;

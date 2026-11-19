@@ -476,11 +476,14 @@ describe('ExWatermark', () => {
   });
 
   it('忽略较早完成的异步图片绘制结果', async () => {
+    const observe = vi.spyOn(MutationObserver.prototype, 'observe');
     const wrapper = mount(ExWatermark, {
-      props: { type: 'image', imageSrc: '/first.png', fullPage: false },
+      props: { type: 'image', imageSrc: '/first.png', fullPage: false, antiTamper: true },
     });
     await waitAsync();
     const firstImage = ControllableImage.instances[0];
+    const overlay = wrapper.get('.ex-watermark__overlay').element;
+    expect(observe.mock.calls.some(([target]) => target === overlay)).toBe(false);
 
     await wrapper.setProps({ imageSrc: '/second.png' });
     await waitAsync();
@@ -489,6 +492,7 @@ describe('ExWatermark', () => {
     secondImage?.load();
     await waitAsync();
     const latestDataUrl = wrapper.vm.toDataURL();
+    expect(observe.mock.calls.some(([target]) => target === overlay)).toBe(true);
 
     firstImage?.load();
     await waitAsync();

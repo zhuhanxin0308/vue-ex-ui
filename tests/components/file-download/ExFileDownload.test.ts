@@ -5,7 +5,7 @@ import {
   type ComponentMountingOptions,
   type VueWrapper,
 } from '@vue/test-utils';
-import { h, nextTick } from 'vue';
+import { h, nextTick, ref } from 'vue';
 import ExFileDownload from '../../../src/components/file-download/ExFileDownload.vue';
 import { ExFileDownloadError } from '../../../src/components/file-download/errors';
 import type {
@@ -649,6 +649,24 @@ describe('ExFileDownload', () => {
   });
 
   describe('渲染契约与资源清理', () => {
+    it('父级动态添加和移除触发器插槽时重新选择默认按钮', async () => {
+      const active = ref(false);
+      const wrapper = mount({
+        render: () =>
+          h(
+            ExFileDownload,
+            { url: '/x' },
+            active.value ? { default: () => h('button', '自定义') } : {}
+          ),
+      });
+      active.value = true;
+      await nextTick();
+      expect(wrapper.get('button').text()).toBe('自定义');
+      active.value = false;
+      await nextTick();
+      expect(wrapper.get('button').text()).not.toBe('自定义');
+      wrapper.unmount();
+    });
     it('默认插槽获得可执行下载、取消、状态、进度和禁用信息', () => {
       const wrapper = mountDownload({
         props: { url: '/file.zip' },

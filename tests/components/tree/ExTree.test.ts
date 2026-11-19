@@ -152,7 +152,7 @@ describe('ExTree', () => {
       expect(wrapper.find('[role="treeitem"]').attributes('aria-checked')).toBe('mixed');
     });
 
-    it('子节点全部勾选时不应该把禁用父节点加入 checkedKeys', async () => {
+    it('禁用分支阻止子节点发起勾选', async () => {
       const guardedData: TreeNode[] = [
         {
           key: 'disabled-parent',
@@ -168,7 +168,8 @@ describe('ExTree', () => {
 
       await childCheckbox.setValue(true);
 
-      expect(wrapper.emitted('update:checkedKeys')?.at(-1)).toEqual([['child']]);
+      expect(childCheckbox.attributes('disabled')).toBeDefined();
+      expect(wrapper.emitted('update:checkedKeys')).toBeUndefined();
     });
   });
 

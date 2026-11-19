@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { mount } from '@vue/test-utils';
-import { h, nextTick, ref } from 'vue';
+import { createCommentVNode, h, nextTick, ref } from 'vue';
 import ExDescriptions from '../../../src/components/descriptions/ExDescriptions.vue';
 import ExDescriptionsItem from '../../../src/components/descriptions/ExDescriptionsItem.vue';
 
@@ -19,6 +19,42 @@ const mountDesc = (
   });
 
 describe('ExDescriptions', () => {
+  it('注释插槽不生成孤立冒号和无名称表头，动态标题恢复关联', async () => {
+    const show = ref(false);
+    const wrapper = mount({
+      render: () =>
+        h(
+          ExDescriptions,
+          {},
+          {
+            ...(show.value ? { title: () => h('span', '数据') } : {}),
+            extra: () => createCommentVNode(),
+            default: () =>
+              h(
+                ExDescriptionsItem,
+                {},
+                {
+                  label: () => (show.value ? h('b', '状态') : createCommentVNode()),
+                  default: () => '正常',
+                }
+              ),
+          }
+        ),
+    });
+    expect(wrapper.find('.ex-descriptions__header').exists()).toBe(false);
+    expect(wrapper.find('.ex-descriptions__colon').exists()).toBe(false);
+    expect(wrapper.get('td').attributes('headers')).toBeUndefined();
+    show.value = true;
+    await nextTick();
+    expect(wrapper.get('table').attributes('aria-labelledby')).toBe(
+      wrapper.get('.ex-descriptions__title').attributes('id')
+    );
+    expect(wrapper.get('td').attributes('headers')).toBe(wrapper.get('th').attributes('id'));
+    expect(wrapper.get('th b').text()).toBe('状态');
+    expect(wrapper.get('.ex-descriptions__colon').text()).toBe(':');
+    wrapper.unmount();
+  });
+
   it('渲染标签与内容', () => {
     const wrapper = mountDesc({ title: '信息' }, [
       { label: '用户名', content: 'Edge' },

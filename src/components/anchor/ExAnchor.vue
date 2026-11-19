@@ -150,24 +150,27 @@ const setActiveFromScroll = (href: string): void => {
 const getCurrentAnchor = (): string => {
   if (!scrollContainer) return '';
   const viewportTop = isWindowContainer(scrollContainer)
-    ? window.scrollY
-      ? 0
-      : document.documentElement.scrollTop
+    ? 0
     : scrollContainer.getBoundingClientRect().top;
   const threshold = viewportTop + (props.targetOffset ?? props.offsetTop) + props.bounds;
   let nearestTop = -Infinity;
-  let current = '';
+  let current: AnchorItem | undefined;
   for (const link of links.value) {
     const target = resolveTarget(link.href);
     if (!target) continue;
-    // 按可见位置单次选取最近锚点，保留相同位置时后注册条目优先。
     const top = target.getBoundingClientRect().top;
-    if (top <= threshold && top >= nearestTop) {
+    if (top > threshold || top < nearestTop) continue;
+    // 目标顶部相同时按导航中的实际位置决胜，动态挂载顺序不影响选择。
+    if (
+      !current ||
+      top > nearestTop ||
+      current.element.compareDocumentPosition(link.element) & Node.DOCUMENT_POSITION_FOLLOWING
+    ) {
       nearestTop = top;
-      current = link.href;
+      current = link;
     }
   }
-  return current;
+  return current?.href ?? '';
 };
 
 const handleScroll = (): void => {
@@ -224,27 +227,30 @@ const removeListeners = (): void => {
   scrollContainer = null;
 };
 
-const addListeners = (): void => {
-  scrollContainer = props.container();
-  scrollContainer.addEventListener('scroll', scrollTask.schedule, { passive: true });
-  window.addEventListener('resize', scrollTask.schedule, { passive: true });
-};
-
-watch(
-  () => props.container,
-  () => {
-    if (!mounted) return;
-    removeListeners();
-    addListeners();
-    handleScroll();
-  }
-);
 watch([() => props.offsetTop, () => props.targetOffset, () => props.bounds], handleScroll);
 
 onMounted(() => {
   mounted = true;
-  addListeners();
-  handleScroll();
+  watch(
+    () => props.container() ?? null,
+    container => {
+      removeListeners();
+      clearAnimationTimer();
+      scrollContainer = container;
+      if (container) {
+        container.addEventListener('scroll', scrollTask.schedule, { passive: true });
+        window.addEventListener('resize', scrollTask.schedule, { passive: true });
+      }
+      handleScroll();
+    },
+    { immediate: true, flush: 'post' }
+  );
+  // 包装组件内部可独立重排链接，重排时也需校准等高目标。
+  if (anchorRef.value && typeof MutationObserver !== 'undefined') {
+    const observer = new MutationObserver(handleScroll);
+    observer.observe(anchorRef.value, { childList: true, subtree: true });
+    onBeforeUnmount(() => observer.disconnect());
+  }
 });
 
 onBeforeUnmount(() => {

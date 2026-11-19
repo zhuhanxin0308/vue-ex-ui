@@ -12,6 +12,7 @@
       :disabled="disabled || isDecreaseDisabled"
       :tabindex="disabled || isDecreaseDisabled ? -1 : 0"
       :aria-label="t('numberInput.decrease')"
+      @mousedown.prevent
       @click="handleDecrease"
     >
       <slot name="decrease-icon">
@@ -38,7 +39,7 @@
       v-bind="fieldAriaAttrs"
       :aria-valuemin="ariaValueMin"
       :aria-valuemax="ariaValueMax"
-      :aria-valuenow="modelValue ?? undefined"
+      :aria-valuenow="confirmedValue ?? undefined"
       :aria-readonly="readonly"
       role="spinbutton"
       @input="handleInput"
@@ -59,6 +60,7 @@
         :disabled="disabled || isIncreaseDisabled"
         :tabindex="disabled || isIncreaseDisabled ? -1 : 0"
         :aria-label="t('numberInput.increase')"
+        @mousedown.prevent
         @click="handleIncrease"
       >
         <slot name="increase-icon">
@@ -75,6 +77,7 @@
         :disabled="disabled || isDecreaseDisabled"
         :tabindex="disabled || isDecreaseDisabled ? -1 : 0"
         :aria-label="t('numberInput.decrease')"
+        @mousedown.prevent
         @click="handleDecrease"
       >
         <slot name="decrease-icon">
@@ -95,6 +98,7 @@
       :disabled="disabled || isIncreaseDisabled"
       :tabindex="disabled || isIncreaseDisabled ? -1 : 0"
       :aria-label="t('numberInput.increase')"
+      @mousedown.prevent
       @click="handleIncrease"
     >
       <slot name="increase-icon">
@@ -110,6 +114,7 @@
 
 <script setup lang="ts">
 import { normalizeCustomClass } from '../../composables/useCustomClass';
+import { useControllableState } from '../../composables/useControllableState';
 import { computed, ref, watch, onBeforeUnmount } from 'vue';
 import type { ExNumberInputProps, ExNumberInputEmits, ExNumberInputExposed } from './types';
 import { useI18n } from '../../locale';
@@ -125,7 +130,7 @@ defineOptions({
 });
 
 const props = withDefaults(defineProps<ExNumberInputProps>(), {
-  modelValue: null,
+  defaultValue: null,
   min: -Infinity,
   max: Infinity,
   step: 1,
@@ -151,12 +156,19 @@ const {
   size: componentSize,
   ariaAttrs: fieldAriaAttrs,
 } = useFormFieldState(props);
+const { value: confirmedValue, request: requestValue } = useControllableState<number | null>({
+  controlledValue: () => props.modelValue,
+  defaultValue: () => props.defaultValue,
+  resetRevision: () => formItem?.resetRevision?.value,
+  onChange: value => emit('update:modelValue', value),
+});
 
 const numberInputRef = ref<HTMLDivElement>();
 const inputRef = ref<HTMLInputElement>();
 const displayValue = ref<string>('');
 const isFocused = ref(false);
 const hasDraft = ref(false);
+let filteredEmptyDraft = false;
 let debouncedInput: DebouncedFunction<(value: number) => void> | null = null;
 
 // 计算属性
@@ -170,6 +182,7 @@ const numberInputClasses = computed(() => {
   if (disabled.value) classes.push('ex-number-input--disabled');
   if (readonly.value) classes.push('ex-number-input--readonly');
   if (isFocused.value) classes.push('ex-number-input--focused');
+  if (formItem?.status?.value) classes.push(`ex-number-input--${formItem.status.value}`);
   if (!props.controls) classes.push('ex-number-input--no-controls');
 
   classes.push(...normalizeCustomClass(props.class));
@@ -262,24 +275,24 @@ const validateValue = (value: number, snap = false): number => {
 };
 
 // 解析输入值（增强输入验证）
-const parseValue = (input: string): number | null => {
-  // 允许空值、负号、小数点开头
-  if (input === '' || input === '-' || input === '.' || input === '-.') return null;
+const parseValue = (input: string): number | null | undefined => {
+  // 空文本提交空值，未完成或无效的数字不提交。
+  if (input === '') return null;
 
   // 过滤非法字符（只允许数字、负号、小数点）
   const filtered = input.replace(/[^\d.-]/g, '');
   if (filtered !== input) {
-    return props.modelValue;
+    return undefined;
   }
 
   const num = Number(input);
-  if (!Number.isFinite(num)) return props.modelValue;
+  if (!Number.isFinite(num)) return undefined;
 
   return num;
 };
 
 const stepValue = computed(() =>
-  hasDraft.value ? (parseValue(displayValue.value) ?? props.modelValue) : props.modelValue
+  hasDraft.value ? (parseValue(displayValue.value) ?? confirmedValue.value) : confirmedValue.value
 );
 const isIncreaseDisabled = computed(
   () => !interactive.value || (stepValue.value !== null && stepValue.value >= props.max)
@@ -293,11 +306,12 @@ const updateDisplayValue = (force = false) => {
   if (isFocused.value && !force) return;
 
   hasDraft.value = false;
-  if (props.modelValue === null) {
+  filteredEmptyDraft = false;
+  if (confirmedValue.value === null) {
     displayValue.value = '';
   } else {
     // 应用精度格式化
-    const formattedValue = validateValue(props.modelValue);
+    const formattedValue = validateValue(confirmedValue.value);
     displayValue.value = formatDisplayNumber(formattedValue);
   }
   if (force && inputRef.value) inputRef.value.value = displayValue.value;
@@ -305,7 +319,7 @@ const updateDisplayValue = (force = false) => {
 
 // 外部确认值优先于尚未提交的草稿，聚焦状态不阻挡显式数据更新。
 watch(
-  () => props.modelValue,
+  confirmedValue,
   () => {
     debouncedInput?.cancel();
     updateDisplayValue(true);
@@ -349,6 +363,8 @@ const handleInput = (event: Event) => {
 
   // 实时输入过滤（只允许数字、负号、小数点）
   const filtered = value.replace(/[^\d.-]/g, '');
+  // 纯非法文本和主动清空都显示为空，但只有后者可以提交 null。
+  filteredEmptyDraft = value !== '' && filtered === '';
   if (filtered !== value) {
     value = filtered;
     target.value = filtered;
@@ -357,8 +373,8 @@ const handleInput = (event: Event) => {
   displayValue.value = value;
   hasDraft.value = true;
 
-  const parsedValue = parseValue(value);
-  if (parsedValue !== null) {
+  const parsedValue = filteredEmptyDraft ? undefined : parseValue(value);
+  if (typeof parsedValue === 'number') {
     if (debouncedInput) {
       debouncedInput(parsedValue);
     } else {
@@ -381,23 +397,21 @@ const handleChange = (event: Event) => {
   if (!hasDraft.value && value === displayValue.value) return;
   hasDraft.value = false;
 
-  const parsedValue = parseValue(value);
-  if (parsedValue === null) {
-    emit('update:modelValue', null);
-    emit('change', null, props.modelValue);
-    formItem?.onFieldChange();
+  const parsedValue = filteredEmptyDraft && value === '' ? undefined : parseValue(value);
+  if (parsedValue === undefined) {
+    discardDraft();
     return;
   }
 
-  const validatedValue = validateValue(parsedValue, props.strictStep);
-  const oldValue = props.modelValue;
+  const validatedValue = parsedValue === null ? null : validateValue(parsedValue, props.strictStep);
+  const oldValue = confirmedValue.value;
 
-  emit('update:modelValue', validatedValue);
+  requestValue(validatedValue);
   emit('change', validatedValue, oldValue);
   formItem?.onFieldChange();
 
-  // 更新显示值
-  displayValue.value = formatDisplayNumber(validatedValue);
+  // 同步显示已确认的值；若父级接受请求，属性监听会在渲染时更新显示。
+  if (!hasDraft.value) updateDisplayValue(true);
 };
 
 const handleFocus = (event: FocusEvent) => {
@@ -415,10 +429,10 @@ const handleBlur = (event: FocusEvent) => {
 
 const commitSteppedValue = (newValue: number, direction?: 1 | -1) => {
   if (!Number.isFinite(newValue)) return;
-  const oldValue = props.modelValue;
+  const oldValue = confirmedValue.value;
   // 确认同值不会触发属性监听，立即撤销草稿和待发送的输入事件。
   if (hasDraft.value && newValue === oldValue) discardDraft();
-  emit('update:modelValue', newValue);
+  requestValue(newValue);
   emit('change', newValue, oldValue);
   if (direction === 1) emit('increase', newValue);
   else if (direction === -1) emit('decrease', newValue);

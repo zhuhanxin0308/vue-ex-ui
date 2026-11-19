@@ -26,6 +26,7 @@
             <th
               v-if="selectable && rowIndex === 0"
               class="ex-table__selection-column"
+              :style="auxiliary.style('selection', true)"
               :rowspan="headerDepth"
               scope="col"
             >
@@ -43,6 +44,7 @@
             <th
               v-if="hasDetails && rowIndex === 0"
               class="ex-table__detail-column"
+              :style="auxiliary.style('detail', true)"
               :rowspan="headerDepth"
               scope="col"
             >
@@ -132,6 +134,7 @@
             <th
               v-if="editable && rowIndex === 0"
               class="ex-table__actions-column"
+              :style="auxiliary.style('actions', true)"
               :rowspan="headerDepth"
               scope="col"
             >
@@ -156,7 +159,7 @@
           >
             <tr
               :ref="element => setRowRef(row.key, element)"
-              :class="getRowClasses(row.record, row.sourceIndex)"
+              :class="getRowClasses(row)"
               :style="
                 useVirtual && !dynamicRows ? { height: `${normalizedRowHeight}px` } : undefined
               "
@@ -170,6 +173,7 @@
               <td
                 v-if="selectable"
                 class="ex-table__selection-column"
+                :style="auxiliary.style('selection')"
                 @click.stop
               >
                 <div class="ex-table__cell ex-table__cell--center">
@@ -198,6 +202,7 @@
               <td
                 v-if="hasDetails"
                 class="ex-table__detail-column"
+                :style="auxiliary.style('detail')"
                 @click.stop
               >
                 <button
@@ -340,6 +345,7 @@
               <td
                 v-if="editable"
                 class="ex-table__actions-column"
+                :style="auxiliary.style('actions')"
                 @click.stop
               >
                 <ExTableRowActions
@@ -461,6 +467,9 @@ import type {
 import { useLocale } from '../../locale';
 import { useTableCells } from './use-table-cells';
 import { useTableColumns, getFixedSide } from './use-table-columns';
+import { useTableAuxiliaryColumns } from './use-table-auxiliary-columns';
+import { useRenderComputed } from '../../composables/useRenderComputed';
+import type { DisplayTableRow } from './use-table-rows';
 import { useTableRows, DEFAULT_TREE_INDENT } from './use-table-rows';
 import { useTableSelection } from './use-table-selection';
 import { useTableSpans } from './use-table-spans';
@@ -495,7 +504,8 @@ const tableRef = ref<HTMLDivElement>();
 const containerRef = ref<HTMLDivElement>();
 const { t } = useLocale('table');
 const componentSize = useComponentSize(computed(() => props.size));
-const hasDetails = computed(() => Boolean(slots['expanded-row']));
+// 详情是行级作用域插槽，只在对应行展开后传入真实记录求值。
+const hasDetails = useRenderComputed(() => Boolean(slots['expanded-row']));
 const normalizedIndent = computed(() =>
   Number.isFinite(props.treeIndent) && props.treeIndent >= 0
     ? props.treeIndent
@@ -523,10 +533,16 @@ const {
   resizingKey,
   cancelResize,
 } = useTableColumnInteractions(props, emit, tableRef);
+const auxiliary = useTableAuxiliaryColumns(
+  tableRef,
+  (side): boolean =>
+    props.layout === 'table' && leafColumns.value.some(column => getFixedSide(column) === side)
+);
 const { leafColumns, headerDepth, headerRows, getColumnStyle } = useTableColumns(
   effectiveColumns,
   getColumnWidth,
-  hasManagedWidth
+  hasManagedWidth,
+  auxiliary.offset
 );
 const {
   getRowKey,
@@ -653,11 +669,12 @@ const bodyColumns = computed(() => {
     style: getColumnStyle(column, columnIndex),
   }));
 });
-const getRowClasses = (record: TableDataItem, index: number) => [
+const getRowClasses = ({ record, index, sourceIndex }: DisplayTableRow) => [
   'ex-table__row',
+  typeof props.rowClassName === 'function' ? props.rowClassName(record, index) : props.rowClassName,
   {
     'ex-table__row--striped': props.striped && index % 2 === 1,
-    'ex-table__row--selected': props.selectable && isRowSelected(record, index),
+    'ex-table__row--selected': props.selectable && isRowSelected(record, sourceIndex),
   },
 ];
 const getCellTitle = (record: TableDataItem, column: TableColumn, index: number) => {

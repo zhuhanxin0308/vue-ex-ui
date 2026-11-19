@@ -10,15 +10,13 @@
         :id="titleId"
         class="ex-descriptions__title"
       >
-        <slot name="title">
-          {{ title }}
-        </slot>
+        <Cell :nodes="titleContent" />
       </div>
       <div
-        v-if="$slots.extra"
+        v-if="hasExtra"
         class="ex-descriptions__extra"
       >
-        <slot name="extra" />
+        <Cell :nodes="extraContent" />
       </div>
     </div>
 
@@ -76,6 +74,7 @@
 <script setup lang="ts">
 import { computed, Fragment, useId, useSlots } from 'vue';
 import { useRenderComputed } from '../../composables/useRenderComputed';
+import { hasRenderableContent } from '../../utils/vnode';
 import type { CSSProperties, Slots, VNode, VNodeArrayChildren } from 'vue';
 import { useComponentSize } from '../config-provider/composables';
 import type { DescriptionsAlign, DescriptionsClass, ExDescriptionsProps } from './types';
@@ -98,8 +97,14 @@ const slots = useSlots();
 const componentSize = useComponentSize(computed(() => props.size));
 const instanceId = useId();
 const titleId = `ex-descriptions-title-${instanceId}`;
-const hasTitle = computed(() => Boolean(props.title || slots.title));
-const hasHeader = computed(() => hasTitle.value || Boolean(slots.extra));
+const titleContent = useRenderComputed(() => {
+  const nodes = slots.title?.();
+  return hasRenderableContent(nodes) ? nodes : props.title;
+});
+const hasTitle = computed(() => hasRenderableContent(titleContent.value));
+const extraContent = useRenderComputed(() => slots.extra?.());
+const hasExtra = computed(() => hasRenderableContent(extraContent.value));
+const hasHeader = computed(() => hasTitle.value || hasExtra.value);
 const showColon = computed(() => !props.border && props.colon);
 
 const rootClasses = computed(() => [
@@ -201,12 +206,13 @@ const items = useRenderComputed<ParsedItem[]>(() => {
       const children = (vnode.children ?? {}) as Record<string, (() => VNode[]) | undefined>;
       const label = getProp(vnodeProps, 'label') as string | undefined;
       const labelNodes = typeof children.label === 'function' ? children.label() : undefined;
+      const hasSlotLabel = hasRenderableContent(labelNodes);
       return {
         id: `ex-descriptions-label-${instanceId}-${index}`,
         label,
-        labelNodes,
+        labelNodes: hasSlotLabel ? labelNodes : undefined,
         contentNodes: typeof children.default === 'function' ? children.default() : '',
-        hasLabel: Boolean(label || labelNodes?.length),
+        hasLabel: hasSlotLabel || Boolean(label?.trim()),
         span: normalizePositiveInteger(getProp(vnodeProps, 'span') ?? 1, 1, normalizedColumn.value),
         labelAlign: getProp(vnodeProps, 'labelAlign', 'label-align') as
           DescriptionsAlign | undefined,

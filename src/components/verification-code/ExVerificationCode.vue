@@ -11,6 +11,7 @@ import type {
 } from './types';
 import { isValidChar, filterValidChars } from './types';
 import { useI18n } from '../../locale';
+import { isComposingKeyboardEvent } from '../../utils/keyboard';
 import { useNeonEffect, useAnimation } from '../config-provider/composables';
 import { mergeAriaIds, useFormFieldState } from '../form/use-form-item';
 import ExIcon from '../icon/ExIcon.vue';
@@ -47,6 +48,7 @@ const props = withDefaults(defineProps<ExVerificationCodeProps>(), {
 // 使用全局配置
 const field = useFormFieldState(props);
 const { disabled, readonly, size: componentSize } = field;
+const invalid = computed(() => props.status === 'error' || field.invalid.value);
 const neonEffect = useNeonEffect();
 const animation = useAnimation();
 
@@ -91,6 +93,8 @@ const lastInputIndex = ref(-1);
 // 定时器
 let autoSubmitTimer: ReturnType<typeof setTimeout> | null = null;
 let maskDelayTimer: ReturnType<typeof setTimeout> | null = null;
+let composition: 'idle' | 'editing' | 'discarded' = 'idle';
+let lastComposition: string | null = null;
 
 // 计算属性：当前值
 const currentValue = computed(() => cells.value.join(''));
@@ -110,7 +114,7 @@ const componentClasses = computed(() => {
       'ex-verification-code--disabled': disabled.value,
       'ex-verification-code--readonly': readonly.value,
       'ex-verification-code--focused': isFocused.value,
-      'ex-verification-code--error': props.status === 'error',
+      'ex-verification-code--error': invalid.value,
       'ex-verification-code--success': props.status === 'success',
       'ex-verification-code--warning': props.status === 'warning',
       'ex-verification-code--loading': props.loading,
@@ -174,6 +178,7 @@ watch(
 watch(
   () => field.formItem?.resetRevision?.value,
   () => {
+    if (composition === 'editing') composition = 'discarded';
     synchronizeConfirmedValue(true);
   },
   { flush: 'post' }
@@ -311,12 +316,40 @@ function getFirstEmptyIndex(): number {
 /**
  * 处理输入
  */
+function handleCompositionStart() {
+  composition = field.interactive.value ? 'editing' : 'discarded';
+  lastComposition = null;
+}
+
+function handleCompositionEnd(event: CompositionEvent) {
+  const discarded = composition === 'discarded' || !field.interactive.value;
+  composition = 'idle';
+  if (!discarded && event.data) applyNativeInput(event);
+  else (event.target as HTMLInputElement).value = currentValue.value;
+  // 部分浏览器把最终的组合输入另行派发，事件可以晚于本轮微任务。
+  lastComposition = event.data;
+}
+
 function handleInput(event: Event) {
   if (!field.interactive.value) return;
+  const nativeEvent = event as InputEvent;
+  if (nativeEvent.isComposing || composition !== 'idle') return;
+  const repeatedComposition =
+    lastComposition !== null &&
+    lastComposition === nativeEvent.data &&
+    (nativeEvent.inputType === 'insertFromComposition' ||
+      nativeEvent.inputType === 'insertCompositionText');
+  lastComposition = null;
+  if (repeatedComposition) {
+    (event.target as HTMLInputElement).value = currentValue.value;
+    return;
+  }
+  applyNativeInput(event);
+}
 
+function applyNativeInput(event: Event) {
   const input = event.target as HTMLInputElement;
   const nativeEvent = event as InputEvent;
-  if (nativeEvent.isComposing) return;
   const replacement = Boolean(nativeEvent.inputType && nativeEvent.data === null);
   const value = nativeEvent.data ?? input.value;
 
@@ -383,7 +416,7 @@ function handleInput(event: Event) {
  * 处理键盘事件
  */
 function handleKeyDown(event: KeyboardEvent) {
-  if (!field.interactive.value) {
+  if (!field.interactive.value || composition !== 'idle' || isComposingKeyboardEvent(event)) {
     return;
   }
 
@@ -686,11 +719,13 @@ defineExpose<ExVerificationCodeExposed>({
         :aria-label="inputAriaLabel"
         :aria-labelledby="inputLabelledBy"
         :aria-describedby="inputDescribedBy"
-        :aria-invalid="status === 'error' || field.invalid.value ? 'true' : undefined"
+        :aria-invalid="invalid ? 'true' : undefined"
         :aria-errormessage="field.invalid.value ? field.describedBy.value : undefined"
         :aria-required="required ? 'true' : undefined"
         :required="required"
         @input="handleInput"
+        @compositionstart="handleCompositionStart"
+        @compositionend="handleCompositionEnd"
         @keydown="handleKeyDown"
         @paste="handlePaste"
         @focus="handleFocus"
@@ -708,7 +743,7 @@ defineExpose<ExVerificationCodeExposed>({
             {
               'ex-verification-code__cell--focused': isFocused && focusedIndex === index,
               'ex-verification-code__cell--filled': cells[index] !== '',
-              'ex-verification-code__cell--error': status === 'error',
+              'ex-verification-code__cell--error': invalid,
               'ex-verification-code__cell--success': status === 'success',
               'ex-verification-code__cell--warning': status === 'warning',
             },

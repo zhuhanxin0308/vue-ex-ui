@@ -1,6 +1,15 @@
 import type { IconSize } from './types';
+import { getBuiltinIcon } from './icons';
 
 const ICON_CLASS_TOKEN = /^-?[_a-zA-Z]+[_a-zA-Z0-9-]*$/;
+
+/** 复合组件共用图标分流：注册表名称使用 SVG，其余字符串保留图片地址语义。 */
+export function resolveIconSource(source?: string, fallback?: string) {
+  if (!source) return { icon: fallback, src: undefined };
+  return getBuiltinIcon(source)
+    ? { icon: source, src: undefined }
+    : { icon: undefined, src: source };
+}
 
 /** 将图标尺寸规范为可复用的 CSS 长度。 */
 export function normalizeIconSize(size: IconSize, fallback = 16): string {

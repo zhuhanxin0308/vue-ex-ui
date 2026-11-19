@@ -72,7 +72,7 @@ describe('ExTree 异步数据交互一致性', () => {
     wrappers.push(wrapper);
     const api = wrapper.vm as unknown as ExTreeExposed;
     await flushPromises();
-    expect(api.getCheckedNodes().map(node => node.key)).toEqual(['root', 'enabled']);
+    expect(api.getCheckedNodes().map(node => node.key)).toEqual(['root']);
     api.filter('enabled');
     await nextTick();
     expect(wrapper.find('[data-node-key="enabled"]').exists()).toBe(true);

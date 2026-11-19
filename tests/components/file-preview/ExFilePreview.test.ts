@@ -212,6 +212,23 @@ describe('ExFilePreview', () => {
   });
 
   describe('缩放与旋转', () => {
+    it('十进制缩放精确到达边界，切换图片恢复默认变换', async () => {
+      const wrapper = mountPreview({
+        props: { visible: true, files: imageFiles, minScale: 0.7, scaleStep: 0.1 },
+      });
+      await nextTick();
+      const button = document.querySelector<HTMLButtonElement>('[aria-label="Zoom out"]')!;
+      for (let i = 0; i < 3; i++) {
+        button.click();
+        await nextTick();
+      }
+      expect(button.disabled).toBe(true);
+      document.querySelector<HTMLButtonElement>('[aria-label="Rotate clockwise"]')!.click();
+      await wrapper.setProps({ currentIndex: 1 });
+      expect(document.querySelector<HTMLElement>('.ex-file-preview__image')!.style.transform).toBe(
+        'scale(1) rotate(0deg)'
+      );
+    });
     it('受控缩放和旋转等待父级同步', async () => {
       const wrapper = mountPreview({
         props: { visible: true, file: 'a.png', scale: 1, rotate: 0 },
@@ -301,6 +318,16 @@ describe('ExFilePreview', () => {
   });
 
   describe('文本与代码加载', () => {
+    it('空响应体正常完成文本预览', async () => {
+      vi.stubGlobal(
+        'fetch',
+        vi.fn(async () => new Response(null))
+      );
+      const wrapper = mountPreview({ props: { visible: true, file: 'empty.txt' } });
+      await flushPromises();
+      expect(wrapper.emitted('error')).toBeUndefined();
+      expect(wrapper.emitted('ready')).toHaveLength(1);
+    });
     it('空文本也进入已完成状态并发出 ready', async () => {
       vi.stubGlobal(
         'fetch',
@@ -474,6 +501,25 @@ describe('ExFilePreview', () => {
       expect((wrapper.emitted('error')?.[0]?.[0] as ExFilePreviewError).code).toBe(
         'text-too-large'
       );
+    });
+
+    it.each([
+      ['空', true],
+      ['越界', false],
+    ] as const)('兼容响应按实际字节数校验 %s', async (value, ok) => {
+      vi.stubGlobal(
+        'fetch',
+        vi.fn(async () => ({
+          ok: true,
+          headers: new Headers({ 'content-length': '3' }),
+          body: null,
+          text: async () => value,
+        }))
+      );
+      const wrapper = mountPreview({ props: { visible: true, file: 'a.txt', maxTextBytes: 3 } });
+      await flushPromises();
+      if (ok) expect(wrapper.emitted('ready')).toHaveLength(1);
+      else expect(wrapper.emitted('error')?.[0]?.[0]).toMatchObject({ code: 'text-too-large' });
     });
 
     it('Content-Length 超限时中止底层请求', async () => {

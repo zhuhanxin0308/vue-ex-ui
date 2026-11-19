@@ -79,14 +79,26 @@ test('分页等待容量确认，空跳页恢复原值，锚点和浮层语义�
   await jumper.press('Enter');
   await expect(jumper).toHaveValue('5');
   await page.locator('#tooltip-trigger').click();
-  await expect(page.getByRole('tooltip')).toBeVisible();
+  const tooltip = page.getByRole('tooltip');
+  const trigger = page.locator('#tooltip-trigger');
+  await expect(tooltip).toBeVisible();
+  const tooltipId = await tooltip.getAttribute('id');
+  expect(tooltipId).toBeTruthy();
+  // 输入事件只更新业务说明，外部点击关闭另行验证，避免把两个契约混在一次操作里。
+  await page.locator('#description-input').fill('tooltip-error');
+  await expect(tooltip).toBeVisible();
+  await expect(trigger).toHaveAttribute('aria-describedby', `tooltip-error ${tooltipId}`);
+  await expect(trigger).toHaveAccessibleDescription('当前错误 提示说明');
   await page.locator('#change-description').click();
-  await expect(page.locator('#tooltip-trigger')).toHaveAttribute(
-    'aria-describedby',
-    /当前错误.*ex-tooltip/
-  );
-  await page.locator('#tooltip-trigger').click();
-  await expect(page.locator('#tooltip-trigger')).toHaveAttribute('aria-describedby', '当前错误');
+  await expect(tooltip).toBeHidden();
+  await expect(trigger).toHaveAttribute('aria-describedby', 'tooltip-latest-error');
+  await expect(trigger).toHaveAccessibleDescription('最新错误');
+  await trigger.click();
+  await expect(tooltip).toBeVisible();
+  await expect(trigger).toHaveAttribute('aria-describedby', `tooltip-latest-error ${tooltipId}`);
+  await trigger.click();
+  await expect(tooltip).toBeHidden();
+  await expect(trigger).toHaveAttribute('aria-describedby', 'tooltip-latest-error');
   await page.locator('#menu-trigger').press('ArrowDown');
   await expect
     .poll(() =>

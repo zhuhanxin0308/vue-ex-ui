@@ -20,6 +20,55 @@ const rect = (values: Partial<DOMRect>): DOMRect =>
   }) as DOMRect;
 
 describe('ExAnchor', () => {
+  it('容器引用延迟就绪后迁移监听，失效时解除监听', async () => {
+    const container = ref<HTMLElement | null>(null);
+    const wrapper = mount(ExAnchor, { props: { container: () => container.value } });
+    const element = document.createElement('main');
+    const add = vi.spyOn(element, 'addEventListener');
+    const remove = vi.spyOn(element, 'removeEventListener');
+    container.value = element;
+    await nextTick();
+    expect(add).toHaveBeenCalledWith('scroll', expect.any(Function), { passive: true });
+    container.value = null;
+    await nextTick();
+    expect(remove).toHaveBeenCalledWith('scroll', expect.any(Function));
+    wrapper.unmount();
+  });
+
+  it('等高目标以链接视觉顺序决胜，视口基准不叠加文档滚动量', async () => {
+    const names = ref(['last']);
+    const previous = document.documentElement.scrollTop;
+    document.documentElement.scrollTop = 100;
+    try {
+      for (const [id, top] of [
+        ['first', 0],
+        ['last', 0],
+        ['below', 60],
+      ] as const) {
+        const section = document.createElement('section');
+        section.id = id;
+        vi.spyOn(section, 'getBoundingClientRect').mockReturnValue(rect({ top }));
+        document.body.append(section);
+      }
+      const wrapper = mount(ExAnchor, {
+        slots: {
+          default: () =>
+            names.value.map(id => h(ExAnchorLink, { key: id, href: `#${id}`, title: id })),
+        },
+      });
+      names.value = ['first', 'last', 'below'];
+      await nextTick();
+      expect(wrapper.get('.ex-anchor-link.is-active').text()).toBe('last');
+      names.value = ['last', 'first', 'below'];
+      await nextTick();
+      await nextTick();
+      expect(wrapper.get('.ex-anchor-link.is-active').text()).toBe('first');
+      wrapper.unmount();
+    } finally {
+      document.documentElement.scrollTop = previous;
+    }
+  });
+
   afterEach(() => {
     document.body.innerHTML = '';
     vi.restoreAllMocks();

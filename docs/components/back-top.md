@@ -345,6 +345,8 @@ const box4 = () => (typeof document !== 'undefined' ? document.getElementById('b
 | `show` / `hide` | 强制显示 / 隐藏 | `() => void`                |
 | `getElement`    | 获取按钮 DOM    | `() => HTMLElement \| null` |
 
+`show()` 或 `hide()` 设置的显隐状态会跨滚动事件保留。更换 `target` 或调整有效的 `visibility-height`、`visibility-percent` 阈值后，按钮恢复按滚动位置显示。
+
 ## 无障碍
 
 - 使用原生 `<button>`：默认可聚焦，`Enter` / `Space` 即可触发，无需额外配置。

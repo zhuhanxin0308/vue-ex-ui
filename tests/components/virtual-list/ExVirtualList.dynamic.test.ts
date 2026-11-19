@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { flushPromises, mount, type VueWrapper } from '@vue/test-utils';
-import { reactive } from 'vue';
+import { h, reactive } from 'vue';
+import { renderToString } from 'vue/server-renderer';
 import ExVirtualList from '../../../src/components/virtual-list/ExVirtualList.vue';
 import type { ExVirtualListProps, VisibleRange } from '../../../src/components/virtual-list/types';
 
@@ -71,6 +72,39 @@ describe('ExVirtualList 动态布局回归', () => {
       {} as ResizeObserver
     );
   };
+
+  it('首屏按像素字符串估算，命令滚动立即更新缓冲窗口', async () => {
+    const props = { dataSource: data, itemHeight: 50, height: '400px', buffer: 0, threshold: 1 };
+    const html = await renderToString(h(ExVirtualList, props));
+    expect(html.match(/role="listitem"/g)).toHaveLength(8);
+    const { wrapper, range } = await createList();
+    wrapper.vm.scrollToIndex(10);
+    expect(range()).toMatchObject({ startIndex: 10, endIndex: 12 });
+    wrapper.vm.scrollToTop();
+    expect(range()).toMatchObject({ startIndex: 0, endIndex: 2 });
+  });
+
+  it('方向键进入视口外的缓冲项时主动滚动', async () => {
+    const { wrapper, viewport } = await createList({ buffer: 2 });
+    await wrapper.get('[aria-posinset="2"]').trigger('keydown', { key: 'ArrowDown' });
+    expect(viewport.scrollTop).toBeGreaterThan(0);
+  });
+
+  it('头部项目删除后存活元素按新位置处理高度变化', async () => {
+    const { wrapper } = await createList({
+      dataSource: data.slice(0, 4),
+      itemHeight: () => 50,
+      buffer: 4,
+    });
+    const second = wrapper.get<HTMLElement>('[aria-posinset="2"]').element;
+    await wrapper.setProps({ dataSource: data.slice(1, 4) });
+    await flushPromises();
+    expect(wrapper.get('[aria-posinset="1"]').element).toBe(second);
+    Object.defineProperty(second, 'offsetHeight', { value: 95 });
+    notifyResize(second);
+    await flushPromises();
+    expect(wrapper.get<HTMLElement>('.ex-virtual-list__spacer').element.style.height).toBe('195px');
+  });
 
   it('修改容器高度和缓冲范围后无需滚动即可重新渲染窗口', async () => {
     const list = await createList();

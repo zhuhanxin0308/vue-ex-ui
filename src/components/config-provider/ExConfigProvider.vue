@@ -111,28 +111,15 @@ const providerClasses = computed(() => {
   return classes;
 });
 
-const providerStyles = computed(() => {
-  const styles: Record<string, string> = {
+const providerStyles = computed(() => [
+  {
     display: 'contents',
     ...themeOverrides.value,
-  };
-
-  // z-index 基础值
-  Object.assign(styles, createZIndexCssVariables(zIndex.value));
-
-  // 合并用户自定义样式
-  if (props.style) {
-    if (typeof props.style === 'string') {
-      return `${Object.entries(styles)
-        .map(([k, v]) => `${k}: ${v}`)
-        .join('; ')}; ${props.style}`;
-    } else {
-      Object.assign(styles, props.style);
-    }
-  }
-
-  return styles;
-});
+    ...createZIndexCssVariables(zIndex.value),
+  },
+  // Vue 原生合并字符串、对象和嵌套数组，保留外部样式的覆盖顺序。
+  props.style,
+]);
 
 // 暴露的方法
 const getElement = () => providerRef.value || null;

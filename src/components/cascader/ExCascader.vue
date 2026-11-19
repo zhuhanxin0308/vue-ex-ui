@@ -31,6 +31,7 @@
             type="button"
             class="ex-cascader__tag-remove"
             :aria-label="`${tCommon('clear')}: ${tag.label}`"
+            @mousedown.prevent
             @click.stop="multipleState.remove(tag.path)"
           >
             ×
@@ -90,6 +91,7 @@
           class="ex-cascader__clear"
           type="button"
           :aria-label="tCommon('clear')"
+          @mousedown.prevent
           @click.stop="handleClear"
         >
           <ExIcon
@@ -226,6 +228,7 @@
                 class="ex-cascader__path-button"
                 :class="{ 'ex-cascader__path-button--current': activePathLabels.length === 0 }"
                 :aria-current="activePathLabels.length === 0 ? 'step' : undefined"
+                @mousedown.prevent
                 @click="handlePathCrumbClick(-1)"
               >
                 {{ tCascader('allOptions') }}
@@ -247,6 +250,7 @@
                     'ex-cascader__path-button--current': pathIndex === activePathLabels.length - 1,
                   }"
                   :aria-current="pathIndex === activePathLabels.length - 1 ? 'step' : undefined"
+                  @mousedown.prevent
                   @click="handlePathCrumbClick(pathIndex)"
                 >
                   {{ label }}
@@ -339,6 +343,7 @@
                   <button
                     type="button"
                     class="ex-cascader__retry"
+                    @mousedown.prevent
                     @click="reloadNode(activePath.slice(0, index + 1))"
                   >
                     {{ tTree('retryLoad') }}
@@ -378,7 +383,7 @@ import { findNextEnabledIndex } from './keyboard';
 import { useCascaderAria } from './use-cascader-aria';
 import { usePopupOverlay } from '../../composables/usePopupOverlay';
 import { useViewportPosition } from '../../composables/useFloatingAutoUpdate';
-import { collectCascaderLeafPaths } from './search';
+import { collectCascaderSearchPaths } from './search';
 import type { CascaderSearchResult } from './search';
 import { useCascaderPaths } from './use-cascader-paths';
 import { useCascaderKeyboard } from './use-cascader-keyboard';
@@ -471,6 +476,7 @@ const {
   canSelectPath,
   activePathLabels,
 } = useCascaderPaths({
+  resetRevision: () => formItem?.resetRevision?.value,
   get options() {
     return asyncOptions.data.value;
   },
@@ -480,6 +486,7 @@ const {
 });
 const multipleState = useCascaderMultiple({
   props,
+  resetRevision: () => formItem?.resetRevision?.value,
   blocked: () => effectiveDisabled.value || effectiveReadonly.value,
   getOptions: getSelectedOptions,
   onChange: (paths, options) => {
@@ -536,14 +543,15 @@ const inputDisplayValue = computed(() => {
   return props.multiple ? '' : displayValue.value;
 });
 const searchInput = useCascaderSearchInput(inputRef, inputDisplayValue, setSearchQuery);
-// 先缓存叶子路径，搜索输入变化时只过滤缓存，避免每个字符都递归遍历整棵树。
-const allLeafPaths = computed(() => collectCascaderLeafPaths(asyncOptions.data.value));
-// 搜索结果是一条完整叶子路径，路径中任意一级标签命中即可显示。
+// 缓存可选的完整路径，避免每次输入都遍历整棵树。
+const selectablePaths = computed(() =>
+  collectCascaderSearchPaths(asyncOptions.data.value, props.changeOnSelect)
+);
 const searchResults = computed<CascaderSearchResult[]>(() => {
   if (!hasSearchQuery.value) return [];
 
   const query = searchQuery.value.trim().toLowerCase();
-  return allLeafPaths.value.filter(result =>
+  return selectablePaths.value.filter(result =>
     result.labels.some(label => label.toLowerCase().includes(query))
   );
 });
@@ -600,7 +608,7 @@ const hasChildren = (option: CascaderOption, level: number) =>
 const isSelected = (option: CascaderOption, level: number) =>
   props.multiple
     ? multipleState.isSelected(getOptionPath(option, level))
-    : selectedPath.value[level] === option.value;
+    : getOptionPath(option, level).every((value, index) => selectedPath.value[index] === value);
 // 更新下拉面板位置；非 Teleport 模式保留 CSS 的就地/底部面板布局。
 const updateDropdownPosition = () => {
   if (!props.teleported) {

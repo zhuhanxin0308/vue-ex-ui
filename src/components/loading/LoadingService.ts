@@ -1,5 +1,5 @@
 import { createApp, h, inject, shallowReactive } from 'vue';
-import type { App, AppContext, DirectiveBinding, InjectionKey, Plugin } from 'vue';
+import type { App, AppContext, DirectiveBinding, InjectionKey, ObjectDirective, Plugin } from 'vue';
 import { createSharedInjectionKey } from '../../utils/shared-runtime';
 import { generateId } from '../../utils/id';
 import {
@@ -192,7 +192,12 @@ const trackSingletonLifecycle = (instance: LoadingServiceInstance): LoadingServi
 /** 显示或更新全局单例 Loading。 */
 export function showLoading(config: LoadingServiceConfig = {}): LoadingServiceInstance {
   if (singletonInstance) {
-    singletonInstance.updateConfig(config);
+    // 新一轮显示重新决定定位方式；updateConfig 自身继续保留局部更新语义。
+    singletonInstance.updateConfig({
+      ...config,
+      target: config.target,
+      fullscreen: config.fullscreen,
+    });
     singletonInstance.show();
     return singletonInstance;
   }
@@ -233,15 +238,12 @@ const normalizeDirectiveValue = (
   };
 };
 
-export const install: Plugin<[LoadingPluginOptions?]>['install'] = (app, options = {}) => {
-  const service = createLoadingService(options.defaults, app._context);
+const createLoadingDirective = (
+  service: LoadingService,
+  options: LoadingPluginOptions = {}
+): ObjectDirective<HTMLElement, LoadingDirectiveValue> => {
   const directiveInstances = new WeakMap<HTMLElement, LoadingServiceInstance>();
   const directiveScopes = new WeakMap<HTMLElement, ComponentServiceScope | null>();
-  app.config.globalProperties.$loading = service;
-  app.provide(LOADING_SERVICE_KEY, service);
-  app.onUnmount(() => service.destroyAll());
-
-  if (options.enableDirective === false) return;
 
   const updateDirective = (
     element: HTMLElement,
@@ -283,7 +285,8 @@ export const install: Plugin<[LoadingPluginOptions?]>['install'] = (app, options
           context => createLoadingService(options.defaults, context),
           scoped => scoped.destroyAll()
         )
-      : service;
+      : ((owner?.provides?.[LOADING_SERVICE_KEY as symbol] as LoadingService | undefined) ??
+        service);
     const instance = scopedService.show(config);
     // 遮罩关闭也会销毁服务实例，弱引用表必须同步移除，才能再次创建。
     const forget = () => {
@@ -306,7 +309,7 @@ export const install: Plugin<[LoadingPluginOptions?]>['install'] = (app, options
     directiveScopes.set(element, scope);
   };
 
-  app.directive<HTMLElement, LoadingDirectiveValue>('loading', {
+  return {
     mounted: updateDirective,
     updated: updateDirective,
     unmounted: element => {
@@ -314,9 +317,22 @@ export const install: Plugin<[LoadingPluginOptions?]>['install'] = (app, options
       directiveInstances.delete(element);
       directiveScopes.delete(element);
     },
-  });
+  };
 };
 
-const LoadingPlugin: Plugin<[LoadingPluginOptions?]> = { install };
+/** 支持按需引入指令，并优先复用当前 App 或 ConfigProvider 的隔离服务。 */
+export const vLoading = createLoadingDirective(loadingService);
+
+export const install: Plugin<[LoadingPluginOptions?]>['install'] = (app, options = {}) => {
+  const service = createLoadingService(options.defaults, app._context);
+  app.config.globalProperties.$loading = service;
+  app.provide(LOADING_SERVICE_KEY, service);
+  app.onUnmount(() => service.destroyAll());
+  if (options.enableDirective !== false) {
+    app.directive('loading', createLoadingDirective(service, options));
+  }
+};
+
+export const LoadingPlugin: Plugin<[LoadingPluginOptions?]> = { install };
 
 export default LoadingPlugin;

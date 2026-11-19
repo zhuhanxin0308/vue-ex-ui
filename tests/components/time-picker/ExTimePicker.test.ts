@@ -55,7 +55,7 @@ describe('ExTimePicker', () => {
     expect(document.querySelectorAll('.ex-time-picker__column').length).toBe(2);
   });
 
-  it('点选单元格更新值', async () => {
+  it('点选单元格后确认提交所选时间', async () => {
     mountTP({ modelValue: '00:00:00' });
     await wrapper!.find('.ex-time-picker__trigger').trigger('click');
     await nextTick();
@@ -63,6 +63,9 @@ describe('ExTimePicker', () => {
       .querySelectorAll<HTMLElement>('.ex-time-picker__column')[0]!
       .querySelectorAll<HTMLElement>('.ex-time-picker__cell')[5]!;
     firstHourCell.click();
+    await nextTick();
+    expect(wrapper!.emitted('change')).toBeUndefined();
+    document.querySelector<HTMLButtonElement>('.ex-time-picker__confirm')!.click();
     await nextTick();
     const emitted = wrapper!.emitted('update:modelValue');
     expect(emitted).toBeTruthy();
@@ -104,7 +107,7 @@ describe('ExTimePicker', () => {
     ).toEqual(['Hour', 'Minute', 'Second']);
   });
 
-  it('方向键应该跳过禁用选项并提交选择', async () => {
+  it('方向键应该跳过禁用选项并保留预览焦点', async () => {
     mountTP({ modelValue: '00:00:00', disabledHours: () => [1] });
     const trigger = wrapper!.find('.ex-time-picker__trigger');
 
@@ -117,7 +120,8 @@ describe('ExTimePicker', () => {
     );
     await nextTick();
 
-    expect(wrapper!.emitted('update:modelValue')?.at(-1)?.[0]).toBe('02:00:00');
+    expect(wrapper!.emitted('update:modelValue')).toBeUndefined();
+    expect(document.activeElement?.getAttribute('aria-selected')).toBe('true');
     expect(document.activeElement?.getAttribute('data-value')).toBe('2');
   });
 
@@ -134,6 +138,8 @@ describe('ExTimePicker', () => {
     hourOne.click();
     await nextTick();
 
+    document.querySelector<HTMLButtonElement>('.ex-time-picker__confirm')!.click();
+    await nextTick();
     expect(wrapper!.emitted('update:modelValue')?.at(-1)?.[0]).toBe('01:01:01');
   });
 
@@ -153,6 +159,8 @@ describe('ExTimePicker', () => {
     document.querySelector<HTMLButtonElement>('.ex-time-picker__now')!.click();
     await nextTick();
 
+    document.querySelector<HTMLButtonElement>('.ex-time-picker__confirm')!.click();
+    await nextTick();
     expect(wrapper!.emitted('update:modelValue')?.at(-1)?.[0]).toBe('15:00:00');
   });
 
@@ -173,6 +181,8 @@ describe('ExTimePicker', () => {
     nowButton.click();
     await nextTick();
 
+    document.querySelector<HTMLButtonElement>('.ex-time-picker__confirm')!.click();
+    await nextTick();
     expect(wrapper!.emitted('update:modelValue')?.at(-1)?.[0]).toBe('13:00:00');
   });
 
@@ -290,7 +300,8 @@ describe('ExTimePicker', () => {
       new KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true, cancelable: true })
     );
     await nextTick();
-    expect(wrapper!.emitted('update:modelValue')?.at(-1)?.[0]).toBe('01:00:00');
+    expect(document.activeElement?.getAttribute('data-value')).toBe('1');
+    expect(document.activeElement?.getAttribute('aria-selected')).toBe('true');
     document.activeElement?.dispatchEvent(
       new KeyboardEvent('keydown', { key: 'ArrowUp', bubbles: true, cancelable: true })
     );
@@ -298,7 +309,8 @@ describe('ExTimePicker', () => {
       new KeyboardEvent('keydown', { key: 'End', bubbles: true, cancelable: true })
     );
     await nextTick();
-    expect(wrapper!.emitted('update:modelValue')?.at(-1)?.[0]).toBe('23:00:00');
+    expect(document.activeElement?.getAttribute('data-value')).toBe('23');
+    expect(wrapper!.emitted('update:modelValue')).toBeUndefined();
 
     document.activeElement?.dispatchEvent(
       new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true, cancelable: true })

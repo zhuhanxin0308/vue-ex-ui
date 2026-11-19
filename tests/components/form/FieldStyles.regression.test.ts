@@ -10,6 +10,7 @@ import ExSwitch from '../../../src/components/switch/ExSwitch.vue';
 import ExCascader from '../../../src/components/cascader/ExCascader.vue';
 import ExDateTimePicker from '../../../src/components/datetime-picker/ExDateTimePicker.vue';
 import ExRate from '../../../src/components/rate/ExRate.vue';
+import ExSlider from '../../../src/components/slider/ExSlider.vue';
 import ExFormItem from '../../../src/components/form/ExFormItem.vue';
 import ExInput from '../../../src/components/input/ExInput.vue';
 import ExNumberInput from '../../../src/components/number-input/ExNumberInput.vue';
@@ -40,6 +41,30 @@ function selectorsForToken(file: string, scopeId: string, token: string): string
 }
 
 describe('字段实际 DOM 与公开样式契约', () => {
+  it.each(['success', 'warning', 'error'] as const)(
+    '评级和滑块的 %s 提示命中实际星组和手柄',
+    status => {
+      const wrapper = mount({
+        components: { ExFormItem, ExRate, ExSlider },
+        template: `<ExFormItem validate-status="${status}"><ExRate/><ExSlider/></ExFormItem>`,
+      });
+      wrappers.push(wrapper);
+      for (const [name, shell, file] of [
+        ['ex-rate', '.ex-rate__stars', 'rate/ExRate'],
+        ['ex-slider', '.ex-slider__thumb', 'slider/ExSlider'],
+      ] as const) {
+        const node = wrapper.get(`.${name}`).element;
+        const scope = node.getAttributeNames().find(attr => attr.startsWith('data-v-'))!;
+        const selectors = selectorsForToken(
+          `src/components/${file}.scss`,
+          scope,
+          `var(--ex-color-${status})`
+        );
+        expect(selectors.some(selector => wrapper.get(shell).element.matches(selector))).toBe(true);
+      }
+    }
+  );
+
   it.each(['success', 'warning', 'error'] as const)('选中的 Switch 命中 %s 背景规则', status => {
     const wrapper = mount(ExSwitch, { props: { modelValue: true, validateStatus: status } });
     wrappers.push(wrapper);

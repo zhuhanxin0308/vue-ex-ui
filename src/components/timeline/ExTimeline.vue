@@ -17,6 +17,7 @@ import type { VNode } from 'vue';
 import type { ExTimelineProps, ExTimelineExposed } from './types';
 import { useI18n } from '../../locale';
 import { timelineContextKey } from './context';
+import { useOrderedChildren } from '../../composables/useOrderedChildren';
 
 defineOptions({
   name: 'ExTimeline',
@@ -32,6 +33,7 @@ const props = withDefaults(defineProps<ExTimelineProps>(), {
 });
 
 const timelineRef = ref<HTMLDivElement>();
+const order = useOrderedChildren(timelineRef);
 const slots = useSlots();
 // 展开 Fragment 后再反转，以实际时间线项目为单位，保留嵌套分组的 key 身份。
 const flattenItems = (nodes: unknown[], prefix = ''): VNode[] =>
@@ -52,6 +54,9 @@ provide(timelineContextKey, {
   direction: computed(() => props.direction),
   mode: computed(() => props.mode),
   showLine: computed(() => props.showLine),
+  register: order.register,
+  unregister: order.unregister,
+  indexOf: order.indexOf,
 });
 
 // 计算属性
