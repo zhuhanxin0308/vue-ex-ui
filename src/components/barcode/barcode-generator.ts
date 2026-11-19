@@ -1,5 +1,6 @@
 import type { BarcodeOptions } from './types';
 import { assertBarcodeValue, normalizeBarcodeOptions } from './barcode-limits';
+import { BarcodeError } from './errors';
 
 export { MAX_BARCODE_VALUE_LENGTH } from './barcode-limits';
 
@@ -21,9 +22,7 @@ async function loadJsBarcode(): Promise<BarcodeRenderer> {
     .catch(error => {
       // 加载失败后允许下一次调用重试，错误通过 Promise 交给组件处理。
       rendererPromise = null;
-      const loadError = new Error('无法加载 JsBarcode 依赖');
-      (loadError as Error & { cause?: unknown }).cause = error;
-      throw loadError;
+      throw new BarcodeError('loadFailed', '无法加载 JsBarcode 依赖', error);
     });
 
   return rendererPromise;
@@ -55,7 +54,7 @@ export async function generateBarcode(
           if (valid) {
             resolve();
           } else {
-            reject(new Error('条码内容不符合指定格式'));
+            reject(new BarcodeError('invalidValue', '条码内容不符合指定格式'));
           }
         },
       });

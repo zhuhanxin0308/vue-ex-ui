@@ -10,6 +10,7 @@ import ExFileDownload from '../../../src/components/file-download/ExFileDownload
 import { ExFileDownloadError } from '../../../src/components/file-download/errors';
 import type {
   ExFileDownloadExposed,
+  ExFileDownloadResult,
   ExFileDownloadTransport,
 } from '../../../src/components/file-download/types';
 import { setLocale } from '../../../src/locale';
@@ -152,6 +153,63 @@ describe('ExFileDownload', () => {
   };
 
   const exposed = (wrapper: VueWrapper) => wrapper.vm as unknown as ExFileDownloadExposed;
+
+  it.each([
+    ['fetch', 'success'],
+    ['fetch', 'error'],
+    ['xhr', 'success'],
+    ['xhr', 'error'],
+  ] as const)('%s 的 %s 回调只能取消新的活动请求', async (transport, outcome) => {
+    const finishes: Array<(response: Response) => void> = [];
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(() => new Promise<Response>(resolve => finishes.push(resolve)))
+    );
+    vi.stubGlobal('XMLHttpRequest', MockXHR);
+    let next: Promise<ExFileDownloadResult> | undefined;
+    let cancelledFinished: boolean | undefined;
+    const terminal = vi.fn(() => {
+      if (terminal.mock.calls.length > 1) return;
+      cancelledFinished = exposed(wrapper).cancel();
+      next = exposed(wrapper).download();
+    });
+    const wrapper = mountDownload({
+      props: { url: '/file.bin', transport },
+      attrs: outcome === 'success' ? { onSuccess: terminal } : { onError: terminal },
+    });
+    const first = exposed(wrapper).download();
+    if (transport === 'fetch') {
+      finishes[0]!(createFetchResponse({ ok: outcome === 'success', status: 503 }));
+    } else {
+      MockXHR.instances[0]!.status = outcome === 'success' ? 200 : 503;
+      MockXHR.instances[0]!.triggerLoad();
+    }
+
+    await expect(first).resolves.toMatchObject({ outcome });
+    expect(cancelledFinished).toBe(false);
+    expect(wrapper.emitted('cancel')).toBeUndefined();
+    expect(wrapper.emitted('start')).toHaveLength(2);
+    await nextTick();
+    expect(wrapper.attributes('aria-busy')).toBe('true');
+    if (transport === 'fetch') finishes[1]!(createFetchResponse());
+    else MockXHR.instances[1]!.triggerLoad();
+    await expect(next).resolves.toMatchObject({ outcome: 'success' });
+    expect(exposed(wrapper).cancel()).toBe(false);
+  });
+
+  it('链接交接完成回调可以立即发起下一次下载', async () => {
+    let next: Promise<ExFileDownloadResult> | undefined;
+    const onTrigger = vi.fn(() => {
+      if (onTrigger.mock.calls.length === 1) next = exposed(wrapper).download();
+    });
+    const wrapper = mountDownload({ props: { url: '/file.bin' }, attrs: { onTrigger } });
+
+    await expect(exposed(wrapper).download()).resolves.toMatchObject({ outcome: 'triggered' });
+    await expect(next).resolves.toMatchObject({ outcome: 'triggered' });
+    expect(onTrigger).toHaveBeenCalledTimes(2);
+    expect(clickedAnchors).toHaveLength(2);
+    expect(exposed(wrapper).cancel()).toBe(false);
+  });
 
   it.each(['fetch', 'xhr'] as const)(
     '%s 的在途下载固定文件配置，新配置仅用于下一次下载',

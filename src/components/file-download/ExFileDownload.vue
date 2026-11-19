@@ -367,11 +367,13 @@ const handleDownload = async (): Promise<ExFileDownloadResult> => {
       const filename = resolveDownloadFilename(requestedFilename, null, url);
       triggerBrowserDownload(url, filename);
       status.value = 'triggered';
+      isHandlingLink = false;
       emit('trigger', url, filename);
       return { outcome: 'triggered', transport, url, filename };
     } catch (error) {
       const downloadError = normalizeError(error, 'unsupported');
       status.value = 'error';
+      isHandlingLink = false;
       emit('error', downloadError);
       return { outcome: 'error', error: downloadError };
     } finally {
@@ -396,6 +398,8 @@ const handleDownload = async (): Promise<ExFileDownloadResult> => {
     const filename = resolveDownloadFilename(requestedFilename, response.contentDisposition, url);
     downloadBlob(response.blob, filename);
     status.value = 'success';
+    // 终态先释放操作身份，业务完成监听器才可立即开始下一次下载。
+    activeOperation = null;
     emit('success', response.blob, filename);
     return { outcome: 'success', transport, blob: response.blob, filename };
   } catch (error) {
@@ -405,6 +409,7 @@ const handleDownload = async (): Promise<ExFileDownloadResult> => {
 
     const downloadError = normalizeError(error);
     status.value = 'error';
+    activeOperation = null;
     emit('error', downloadError);
     return { outcome: 'error', error: downloadError };
   } finally {

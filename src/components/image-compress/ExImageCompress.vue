@@ -5,11 +5,11 @@
     :aria-busy="isBusy ? 'true' : 'false'"
   >
     <div
-      v-if="sourceError"
+      v-if="displayError"
       class="ex-image-compress__error"
       role="alert"
     >
-      {{ sourceError.message }}
+      {{ displayError.message }}
     </div>
 
     <section
@@ -240,7 +240,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, nextTick, onBeforeUnmount, ref, shallowRef, watch } from 'vue';
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, shallowRef, watch } from 'vue';
 import ExButton from '../button/ExButton.vue';
 import ExIcon from '../icon/ExIcon.vue';
 import ExNumberInput from '../number-input/ExNumberInput.vue';
@@ -290,6 +290,8 @@ const { t } = useI18n();
 const compressRef = ref<HTMLDivElement | null>(null);
 const sourceResource = shallowRef<ImageCompressLoadedResource | null>(null);
 const sourceError = shallowRef<Error | null>(null);
+const compressionError = shallowRef<Error | null>(null);
+const displayError = computed(() => sourceError.value ?? compressionError.value);
 const result = shallowRef<CompressResult | null>(null);
 const compressedUrl = ref('');
 const isLoadingSource = ref(false);
@@ -325,6 +327,7 @@ let sourceGeneration = 0;
 let sourceLoadPromise: Promise<ImageCompressLoadedResource | null> | null = null;
 let activeCompression: Promise<CompressResult> | null = null;
 let isDisposed = false;
+let isMounted = false;
 
 const asError = (error: unknown, fallback: string): Error =>
   error instanceof Error ? error : new Error(fallback);
@@ -345,6 +348,7 @@ const cancelCompression = (): void => {
   compressionController = null;
   activeCompression = null;
   isCompressing.value = false;
+  compressionError.value = null;
 };
 
 const disposeSourceResource = (): void => {
@@ -435,6 +439,7 @@ const runCompression = async (): Promise<CompressResult> => {
   const controller = new AbortController();
   compressionController = controller;
   isCompressing.value = true;
+  compressionError.value = null;
 
   try {
     const resource = sourceResource.value ?? (await waitForSource(controller.signal));
@@ -447,6 +452,10 @@ const runCompression = async (): Promise<CompressResult> => {
       );
     }
     emit('start');
+    // 业务监听器可以同步重置组件；已取消任务不得继续进入编码阶段。
+    if (controller.signal.aborted) {
+      throw new ExImageCompressError('ABORTED', '图片压缩已取消');
+    }
     const compressed = await compressLoadedImage(
       resource,
       createCompressionOptions(controller.signal)
@@ -461,8 +470,15 @@ const runCompression = async (): Promise<CompressResult> => {
     emit('compress', compressed);
     return compressed;
   } catch (error) {
+    if (controller.signal.aborted || generation !== sourceGeneration || isDisposed) {
+      throw new ExImageCompressError('ABORTED', '图片压缩已取消');
+    }
     const normalized = asError(error, t('imageCompress.compressError'));
-    if (!isDisposed && !isAbortError(normalized)) emit('error', normalized);
+    // 来源错误已由加载流程发布；等待它的压缩调用仅保留原始拒绝语义。
+    if (!isAbortError(normalized) && normalized !== sourceError.value) {
+      compressionError.value = normalized;
+      emit('error', normalized);
+    }
     throw normalized;
   } finally {
     if (compressionController === controller) {
@@ -475,12 +491,19 @@ const runCompression = async (): Promise<CompressResult> => {
 const compress = (): Promise<CompressResult> => {
   if (activeCompression) return activeCompression;
 
-  const task = runCompression();
+  let resolveTask!: (value: CompressResult) => void;
+  let rejectTask!: (reason: unknown) => void;
+  const task = new Promise<CompressResult>((resolve, reject) => {
+    resolveTask = resolve;
+    rejectTask = reject;
+  });
+  // 必须先发布任务身份，再调用可能同步触发业务 start 监听器的执行逻辑。
   activeCompression = task;
   const clearTask = (): void => {
     if (activeCompression === task) activeCompression = null;
   };
   void task.then(clearTask, clearTask);
+  void runCompression().then(resolveTask, rejectTask);
   return task;
 };
 
@@ -529,8 +552,9 @@ const download = (filename?: string): void => {
 
 watch(
   () => props.src,
-  () => startSourceLoad(),
-  { immediate: true }
+  () => {
+    if (isMounted) startSourceLoad();
+  }
 );
 watch([() => props.mode, () => props.outputType], ([mode, outputType]) => {
   currentOutputType.value = outputType;
@@ -592,7 +616,13 @@ watch(
   }
 );
 
+onMounted(() => {
+  isMounted = true;
+  startSourceLoad();
+});
+
 onBeforeUnmount(() => {
+  isMounted = false;
   isDisposed = true;
   sourceGeneration += 1;
   sourceController?.abort();

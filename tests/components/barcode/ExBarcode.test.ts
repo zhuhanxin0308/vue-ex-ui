@@ -62,7 +62,7 @@ describe('ExBarcode', () => {
     mockedGenerate.mockRejectedValueOnce(new Error('invalid'));
     const wrapper = mount(ExBarcode, { props: { value: 'invalid' } });
     await flushPromises();
-    expect(wrapper.find('[role="alert"]').text()).toContain('invalid');
+    expect(wrapper.find('[role="alert"]').text()).toContain('Barcode generation failed');
     expect(wrapper.attributes('aria-busy')).toBeUndefined();
     wrapper.unmount();
   });
