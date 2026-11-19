@@ -51,8 +51,9 @@ describe('评分继承宿主的文字方向', () => {
     const { wrapper } = createRate('ltr');
     const errors = vi.fn();
     wrapper.vm.$.appContext.config.errorHandler = errors;
-    const matches = wrapper.element.matches.bind(wrapper.element);
-    vi.spyOn(wrapper.element, 'matches').mockImplementation(selector => {
+    const rateElement = wrapper.element as HTMLElement;
+    const matches = rateElement.matches.bind(rateElement);
+    vi.spyOn(rateElement, 'matches').mockImplementation(selector => {
       if (selector.includes(':dir(')) throw new DOMException('不支持的选择器', 'SyntaxError');
       return matches(selector);
     });
