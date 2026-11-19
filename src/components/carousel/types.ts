@@ -1,3 +1,5 @@
+import type { StyleValue } from 'vue';
+
 /**
  * 箭头显示时机
  */
@@ -49,7 +51,7 @@ export interface ExCarouselProps {
   /** 自定义CSS类名 */
   class?: string | string[] | Record<string, boolean>;
   /** 自定义样式 */
-  style?: string | Record<string, string | number>;
+  style?: StyleValue;
 }
 
 /**

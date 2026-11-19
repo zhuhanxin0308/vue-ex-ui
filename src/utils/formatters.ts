@@ -11,11 +11,12 @@ function formatGroupedNumber(value: string, fractionDigits?: number): string {
   const cleaned = value.replace(/[^\d.]/g, '');
   if (cleaned.indexOf('.') !== cleaned.lastIndexOf('.')) return value;
   const [integer = '', fraction] = cleaned.split('.');
-  const grouped = integer.replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+  const normalizedInteger = integer.replace(/^0+(?=\d)/, '');
+  const grouped = normalizedInteger.replace(/\B(?=(\d{3})+(?!\d))/g, ',');
   const sign = value.trimStart().startsWith('-') ? '-' : '';
   const decimals = fraction?.slice(0, fractionDigits);
-  const suffix =
-    decimals !== undefined && (decimals || fractionDigits === undefined) ? `.${decimals}` : '';
+  // 小数点本身是合法输入草稿，不能因暂时还没有小数位而删除。
+  const suffix = decimals !== undefined && fractionDigits !== 0 ? `.${decimals}` : '';
   return `${sign}${grouped}${suffix}`;
 }
 

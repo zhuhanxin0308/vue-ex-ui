@@ -22,7 +22,7 @@ interface PendingTreeLoad {
 export function useTreeLoader({ props, onLoad, onError }: TreeLoaderOptions) {
   const branches = shallowRef(new Map<string, LoadedTreeBranch>());
   const states = shallowRef(new Map<string, TreeNodeLoadState>());
-  const safeData = computed(() => pruneTreeCycles(props.data, 'Tree'));
+  const safeData = computed(() => pruneTreeCycles(props.data, 'Tree', node => node.key));
   const tree = computed(() => composeTreeData(safeData.value, branches.value));
   const pending = new Map<string, PendingTreeLoad>();
   const cancelled = new Set<string>();

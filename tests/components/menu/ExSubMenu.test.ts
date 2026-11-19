@@ -1,5 +1,5 @@
 import { flushPromises, mount, type VueWrapper } from '@vue/test-utils';
-import { defineComponent, h, nextTick } from 'vue';
+import { defineComponent, h, nextTick, ref } from 'vue';
 import { afterEach, describe, expect, it } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
@@ -17,6 +17,49 @@ const track = (wrapper: VueWrapper): VueWrapper => {
 const submenuSlot = () => h(ExMenuItem, { itemKey: 'child' }, () => '子项');
 
 describe('ExSubMenu', () => {
+  it('水平一级按钮由键盘单次切换，嵌套分组在弹层中垂直展开', async () => {
+    const wrapper = track(
+      mount(ExMenu, {
+        attachTo: document.body,
+        props: { mode: 'horizontal' },
+        slots: {
+          default: () =>
+            h(ExSubMenu, { itemKey: 'top', title: '一级' }, () =>
+              h(ExSubMenu, { itemKey: 'inner', title: '二级' }, { default: submenuSlot })
+            ),
+        },
+      })
+    );
+    const button = wrapper.get('[data-menu-key="top"]');
+    await button.trigger('keydown', { key: 'Enter' });
+    expect(button.attributes('aria-expanded')).toBe('true');
+    const nested = document.querySelector('[data-menu-key="inner"]')!;
+    expect(nested.closest('.ex-submenu')?.classList.contains('ex-submenu--horizontal')).toBe(false);
+    await button.trigger('keydown', { key: ' ' });
+    expect(button.attributes('aria-expanded')).toBe('false');
+  });
+
+  it('父级动态增删具名图标插槽立即更新图标容器', async () => {
+    const show = ref(false);
+    const wrapper = track(
+      mount({
+        render: () =>
+          h(
+            ExSubMenu,
+            { itemKey: 'group', title: '分组' },
+            show.value ? { icon: () => h('i', '图') } : {}
+          ),
+      })
+    );
+    expect(wrapper.find('.ex-submenu__icon').exists()).toBe(false);
+    show.value = true;
+    await nextTick();
+    expect(wrapper.get('.ex-submenu__icon').text()).toBe('图');
+    show.value = false;
+    await nextTick();
+    expect(wrapper.find('.ex-submenu__icon').exists()).toBe(false);
+  });
+
   afterEach(() => {
     wrappers.splice(0).forEach(wrapper => wrapper.unmount());
     document.body.innerHTML = '';

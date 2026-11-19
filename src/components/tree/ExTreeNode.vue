@@ -69,7 +69,7 @@
         <ExCheckbox
           :model-value="isChecked"
           :indeterminate="isHalfChecked"
-          :disabled="isDisabled"
+          :disabled="checkDisabled"
           :aria-label="node.label"
           @change="handleCheckChange"
         />
@@ -297,6 +297,9 @@ const isHalfChecked = computed(() => {
 const isDisabled = computed(() => {
   return props.disabled || props.node.disabled;
 });
+const checkDisabled = computed(
+  () => isDisabled.value || stateLookup?.disabledChecks.value.has(props.node.key)
+);
 
 const nodeClasses = computed(() => {
   return [
@@ -337,7 +340,7 @@ const handleContextmenu = (event: MouseEvent) => {
 };
 
 const handleCheckChange = (val: string | number | boolean, event: Event) => {
-  if (isDisabled.value) return;
+  if (checkDisabled.value) return;
   emit('check', props.node, Boolean(val));
 
   // ExCheckbox 使用原生 input；受控父级未接受请求时需恢复真实 prop 状态。
@@ -388,7 +391,7 @@ const handleKeydown = (event: KeyboardEvent) => {
     case 'Enter':
     case ' ': {
       event.preventDefault();
-      if (props.checkable && props.node.checkable !== false && !isDisabled.value) {
+      if (props.checkable && props.node.checkable !== false && !checkDisabled.value) {
         emit('check', props.node, !isChecked.value);
       } else {
         handleClick(event as unknown as MouseEvent);

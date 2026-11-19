@@ -90,6 +90,7 @@ import ExIcon from '../icon/ExIcon.vue';
 import { useFormFieldState } from '../form/use-form-item';
 import { useLocale } from '../../locale';
 import { useControllableState } from '../../composables/useControllableState';
+import { isComposingKeyboardEvent } from '../../utils/keyboard';
 
 defineOptions({
   name: 'ExRate',
@@ -135,6 +136,7 @@ const normalizeValue = (value: number) => {
 const ratingState = useControllableState<number>({
   controlledValue: () => props.modelValue,
   defaultValue: 0,
+  resetRevision: () => formItem?.resetRevision?.value,
 });
 const currentValue = computed(() => normalizeValue(ratingState.value.value));
 const hoverValue = ref(-1);
@@ -146,6 +148,7 @@ const rateClasses = computed(() => {
 
   if (effectiveDisabled.value) classes.push('is-disabled');
   if (effectiveReadonly.value) classes.push('is-readonly');
+  if (formItem?.status?.value) classes.push(`is-${formItem.status.value}`);
   if (props.customClass) classes.push(props.customClass);
 
   return classes;
@@ -288,7 +291,7 @@ function commitValue(value: number) {
 
 // 键盘操作：左右方向键增减评分
 function handleKeydown(event: KeyboardEvent) {
-  if (effectiveDisabled.value || effectiveReadonly.value) return;
+  if (effectiveDisabled.value || effectiveReadonly.value || isComposingKeyboardEvent(event)) return;
 
   const step = props.allowHalf ? 0.5 : 1;
   let newValue: number;
@@ -318,6 +321,7 @@ watch([normalizedMax, () => props.allowHalf], () => {
 watch([effectiveDisabled, effectiveReadonly], ([disabled, readonly]) => {
   if (disabled || readonly) handleMouseLeave();
 });
+watch(() => formItem?.resetRevision?.value, handleMouseLeave);
 
 // 暴露方法
 defineExpose({

@@ -20,11 +20,13 @@ export function usePickerValue(
   range: ComputedRef<boolean>,
   hasTime: ComputedRef<boolean>,
   period: ComputedRef<DatePeriod>,
-  separator: () => string
+  separator: () => string,
+  resetRevision: () => number | undefined
 ) {
   const state = useControllableState<DateTimePickerValue>({
     controlledValue: () => props.modelValue,
     defaultValue: null,
+    resetRevision,
     clone: clonePickerValue,
   });
   const currentValue = computed(() => {

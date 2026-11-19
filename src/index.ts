@@ -38,8 +38,9 @@ import ExLoading, {
   hideLoading,
   destroyLoading,
   useLoadingService,
+  LoadingPlugin,
+  vLoading,
 } from './components/loading';
-import LoadingPlugin from './components/loading/LoadingService';
 import {
   ExLoadingBar,
   createLoadingBar,
@@ -331,6 +332,8 @@ export {
   hideLoading,
   destroyLoading,
   useLoadingService,
+  LoadingPlugin,
+  vLoading,
 };
 
 export { ICONS, getBuiltinIcon, isBuiltinIcon } from './components/icon';
@@ -531,9 +534,6 @@ const install: Plugin['install'] = (app: App) => {
   for (const component of getPublicComponentPlugins()) {
     app.use(component);
   }
-
-  // 注册 v-loading 指令与 $loading 全局服务
-  app.use(LoadingPlugin);
 };
 
 // 版本号：优先使用构建期注入的 __EX_UI_VERSION__，在未注入场景下回退为 'dev'

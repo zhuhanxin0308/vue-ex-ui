@@ -21,19 +21,24 @@
               :key="item.id || item.path || `${item.title}-${index}`"
               class="ex-page-header__breadcrumb-item"
             >
-              <component
-                :is="item.path ? 'button' : 'span'"
-                :type="item.path ? 'button' : undefined"
+              <button
+                v-if="item.path && index < breadcrumb!.length - 1"
+                type="button"
+                class="ex-page-header__breadcrumb-link ex-page-header__breadcrumb-link--clickable"
+                @click="handleBreadcrumbClick(item.path, index)"
+              >
+                {{ item.title }}
+              </button>
+              <span
+                v-else
                 class="ex-page-header__breadcrumb-link"
                 :class="{
-                  'ex-page-header__breadcrumb-link--clickable': item.path,
                   'ex-page-header__breadcrumb-link--current': index === breadcrumb!.length - 1,
                 }"
                 :aria-current="index === breadcrumb!.length - 1 ? 'page' : undefined"
-                @click="item.path && handleBreadcrumbClick(item.path, index)"
               >
                 {{ item.title }}
-              </component>
+              </span>
               <span
                 v-if="index < breadcrumb!.length - 1"
                 class="ex-page-header__breadcrumb-separator"

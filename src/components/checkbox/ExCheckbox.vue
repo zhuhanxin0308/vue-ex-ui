@@ -101,7 +101,7 @@
     >
       <!-- 帮助文本 -->
       <div
-        v-if="props.helpText || $slots.help"
+        v-if="hasHelp"
         :id="`${checkboxId}-help`"
         class="ex-checkbox__help"
       >
@@ -158,6 +158,8 @@ import { generateId } from '../../utils/id';
 import { useFormItem } from '../form/use-form-item';
 import { checkboxGroupContextKey } from './context';
 import { useControllableState } from '../../composables/useControllableState';
+import { useRenderComputed } from '../../composables/useRenderComputed';
+import { hasRenderableContent } from '../../utils/vnode';
 
 defineOptions({
   name: 'ExCheckbox',
@@ -233,9 +235,15 @@ const nativeChecked = computed(() => {
 
 const isChecked = computed(() => !isIndeterminate.value && nativeChecked.value);
 
-const hasLabel = computed(() => {
-  return Boolean(props.label || slots.default || slots.label);
-});
+const hasLabel = useRenderComputed(
+  () =>
+    Boolean(props.label) ||
+    hasRenderableContent(slots.default?.()) ||
+    hasRenderableContent(slots.label?.())
+);
+const hasHelp = useRenderComputed(
+  () => Boolean(props.helpText) || hasRenderableContent(slots.help?.())
+);
 
 const currentSize = computed(() => {
   // 优先级：组件自己的 size prop > CheckboxGroup 的 size > ConfigProvider 的 size
@@ -354,33 +362,31 @@ const wrapperStyles = computed(() => {
 
 // 显示状态
 const currentErrorMessage = computed(() => {
-  return (
-    validationErrorMessage.value ||
-    props.errorMessage?.trim() ||
-    formItem?.errorMessage?.value ||
-    ''
-  );
+  return validationErrorMessage.value || props.errorMessage?.trim() || '';
 });
 
 const hasErrorState = computed(() => {
   return currentStatus.value === 'error' || Boolean(currentErrorMessage.value);
 });
 
-const showErrorMessage = computed(() => {
-  return hasErrorState.value && (Boolean(currentErrorMessage.value) || Boolean(slots.error));
+const showErrorMessage = useRenderComputed(() => {
+  return (
+    hasErrorState.value &&
+    (Boolean(currentErrorMessage.value) || hasRenderableContent(slots.error?.()))
+  );
 });
 
 const ariaInvalid = computed(() => (hasErrorState.value ? true : undefined));
 
 const showBottomInfo = computed(() => {
-  return props.helpText || slots.help || showErrorMessage.value;
+  return hasHelp.value || showErrorMessage.value;
 });
 
 const ariaDescribedBy = computed(() => {
   return mergeAriaIds(
     props.ariaDescribedby,
     formItem?.describedBy?.value,
-    props.helpText || slots.help ? `${checkboxId.value}-help` : undefined,
+    hasHelp.value ? `${checkboxId.value}-help` : undefined,
     showErrorMessage.value ? `${checkboxId.value}-error` : undefined
   );
 });

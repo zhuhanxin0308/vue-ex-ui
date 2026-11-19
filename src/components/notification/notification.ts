@@ -38,6 +38,8 @@ interface NotificationRecord {
   wrapper: HTMLDivElement;
   vnode: VNode;
   state: 'active' | 'closing' | 'destroyed';
+  rendering: boolean;
+  afterRender?: () => void;
   callbackCalled: boolean;
   close: () => boolean;
 }
@@ -45,6 +47,24 @@ interface NotificationRecord {
 /** 当前 Vue App 的 Notification 服务注入键。 */
 export const NOTIFICATION_SERVICE_KEY: InjectionKey<NotificationService> =
   createSharedInjectionKey('notification-service');
+
+class NotificationClosingAllError extends Error {
+  constructor(readonly service: NotificationService) {
+    super('Notification 服务批量关闭期间不能创建通知');
+  }
+}
+
+const isReopenRejection = (error: unknown, service: NotificationService): boolean =>
+  error instanceof NotificationClosingAllError && error.service === service;
+
+/** 自动卸载时只处理本服务拒绝重开的信号，业务异常继续交给 Vue。 */
+export function disposeNotificationService(service: NotificationService): void {
+  try {
+    service.closeAll();
+  } catch (error) {
+    if (!isReopenRejection(error, service)) throw error;
+  }
+}
 
 const createContainerStyle = (
   options: ResolvedNotificationOptions
@@ -70,6 +90,7 @@ export function createNotificationService(appContext?: AppContext): Notification
   let hasExplicitZIndex = false;
   let stopZIndexWatch: (() => void) | undefined;
   let seed = 0;
+  let closingAll = false;
   const records = new Map<string, NotificationRecord>();
   const containers = new Map<string, HTMLDivElement>();
   const activeQueues = new Map<NotificationPosition, NotificationRecord[]>();
@@ -100,15 +121,16 @@ export function createNotificationService(appContext?: AppContext): Notification
   const createGroupKey = (options: ResolvedNotificationOptions): string =>
     `${options.position}:${options.offset}:${options.zIndex}`;
 
-  const closeStaleGroupRecords = (groupKey: string): void => {
+  const closeStaleGroupRecords = (groupKey: string, reserved?: NotificationRecord): void => {
     const existing = containers.get(groupKey);
     if (!existing || existing.isConnected) return;
     containers.delete(groupKey);
-    forceCloseRecords([...records.values()].filter(record => record.groupKey === groupKey));
+    forceCloseRecords(
+      [...records.values()].filter(record => record !== reserved && record.groupKey === groupKey)
+    );
   };
 
   const getContainer = (groupKey: string, options: ResolvedNotificationOptions): HTMLDivElement => {
-    closeStaleGroupRecords(groupKey);
     const existing = containers.get(groupKey);
     if (existing) return existing;
 
@@ -159,16 +181,21 @@ export function createNotificationService(appContext?: AppContext): Notification
       previousGroups.add(record.groupKey);
       record.options.zIndex = zIndex;
       record.groupKey = createGroupKey(record.options);
-      getContainer(record.groupKey, record.options).appendChild(record.wrapper);
+      closeStaleGroupRecords(record.groupKey, record);
+      if (record.state === 'destroyed') continue;
       // 更新现有实例，保留通知计时、焦点和关闭回调，不重新挂载。
       record.vnode = cloneVNode(record.vnode, { zIndex });
-      render(record.vnode, record.wrapper);
+      if (record.wrapper.parentNode) {
+        getContainer(record.groupKey, record.options).appendChild(record.wrapper);
+        if (!record.rendering) renderRecord(record);
+      }
     }
     // 合并到已有组时仍按原始创建顺序排列，显式层级的记录留在原组。
     const positions = new Map<string, number>();
     for (const record of records.values()) {
       const container = containers.get(record.groupKey);
       const index = positions.get(record.groupKey) ?? 0;
+      if (!record.wrapper.parentNode) continue;
       if (container && container.children[index] !== record.wrapper)
         container.insertBefore(record.wrapper, container.children[index] ?? null);
       positions.set(record.groupKey, index + 1);
@@ -185,27 +212,65 @@ export function createNotificationService(appContext?: AppContext): Notification
     record.options.onClose?.();
   };
 
+  const duringCloseAll = (operation: () => void): void => {
+    const previous = closingAll;
+    closingAll = true;
+    try {
+      operation();
+    } finally {
+      closingAll = previous;
+    }
+  };
+
+  const renderRecord = (record: NotificationRecord): void => {
+    const vnode = record.vnode;
+    record.rendering = true;
+    try {
+      render(vnode, record.wrapper);
+    } finally {
+      record.rendering = false;
+      const cleanup = record.afterRender;
+      record.afterRender = undefined;
+      cleanup?.();
+    }
+    // 同步渲染业务内容期间层级可能已迁移，提交后应用最新的节点属性。
+    if (record.state !== 'destroyed' && vnode !== record.vnode) renderRecord(record);
+  };
+
   const finalizeRecord = (record: NotificationRecord, invokeClose: boolean): void => {
     if (record.state === 'destroyed') return;
     removeActiveRecord(record);
     record.state = 'destroyed';
-    records.delete(record.id);
-    render(null, record.wrapper);
-    record.wrapper.remove();
-    destroyContainerIfEmpty(record.groupKey);
-    if (invokeClose) notifyClose(record);
+    if (records.get(record.id) === record) records.delete(record.id);
+    const unmount = () => render(null, record.wrapper);
+    try {
+      // Vue 首次渲染尚未提交时先释放逻辑身份，提交后再卸载完整的组件树。
+      if (record.rendering) {
+        record.afterRender = closingAll ? () => duringCloseAll(unmount) : unmount;
+      } else {
+        unmount();
+      }
+    } finally {
+      record.wrapper.remove();
+      destroyContainerIfEmpty(record.groupKey);
+      if (invokeClose) notifyClose(record);
+    }
   };
 
   const forceCloseRecords = (targets: readonly NotificationRecord[]): void => {
-    let firstError: unknown;
+    const errors: unknown[] = [];
     for (const record of targets) {
       try {
         finalizeRecord(record, true);
       } catch (error) {
-        firstError ??= error;
+        errors.push(error);
       }
     }
-    if (firstError !== undefined) throw firstError;
+    if (errors.length) {
+      // 同一批次也可能有真正的业务异常，不能用内部的重开拒绝把它遮蔽。
+      const firstBusinessError = errors.findIndex(error => !isReopenRejection(error, service));
+      throw errors[Math.max(0, firstBusinessError)];
+    }
   };
 
   const handleComponentClose = (record: NotificationRecord): void => {
@@ -230,10 +295,9 @@ export function createNotificationService(appContext?: AppContext): Notification
     return id;
   };
 
-  const enforceLimitBeforeCreate = (position: NotificationPosition): void => {
+  const getExcessRecords = (position: NotificationPosition): NotificationRecord[] => {
     const queue = getQueue(position);
-    const removeCount = queue.length - globalConfig.maxCount + 1;
-    if (removeCount > 0) forceCloseRecords(queue.slice(0, removeCount));
+    return queue.slice(0, Math.max(0, queue.length - globalConfig.maxCount));
   };
 
   const createNotification = (
@@ -241,21 +305,16 @@ export function createNotificationService(appContext?: AppContext): Notification
     forcedType?: NotificationType
   ): NotificationInstance => {
     assertBrowserEnvironment();
+    if (closingAll) throw new NotificationClosingAllError(service);
     const options = resolveNotificationOptions(
       input as NotificationOptions,
       resolveScopedConfig(),
       forcedType
     );
     const id = options.id ?? generateId();
-    if (records.has(id)) throw new TypeError(`Notification id "${id}" 重复`);
     const groupKey = createGroupKey(options);
-    // 外部删除容器时先释放该组旧记录，避免幽灵记录继续占用 maxCount。
-    closeStaleGroupRecords(groupKey);
-    enforceLimitBeforeCreate(options.position);
-    const container = getContainer(groupKey, options);
     const wrapper = document.createElement('div');
     wrapper.className = 'ex-notification-wrapper';
-    container.appendChild(wrapper);
 
     const contentIsVNode = isVNode(options.content);
     const vnode = createVNode(
@@ -291,14 +350,31 @@ export function createNotificationService(appContext?: AppContext): Notification
       wrapper,
       vnode,
       state: 'active',
+      rendering: false,
       callbackCalled: false,
       close: () => requestClose(record),
     };
+    const previous = records.get(id);
+    if (previous?.state === 'active') throw new TypeError(`Notification id "${id}" 重复`);
+    // 淘汰、卸载和渲染都可能同步创建通知，先占用 ID 与队列位置。
+    if (previous) records.delete(id);
     records.set(id, record);
     getQueue(options.position).push(record);
 
     try {
-      render(vnode, wrapper);
+      if (previous) finalizeRecord(previous, false);
+      closeStaleGroupRecords(groupKey, record);
+      forceCloseRecords(getExcessRecords(options.position));
+      if (record.state === 'active') {
+        const container = getContainer(record.groupKey, record.options);
+        // 回调中创建的后续通知可能已挂载，仍按登记顺序插入宿主。
+        const ordered = [...records.values()];
+        const next = ordered
+          .slice(ordered.indexOf(record) + 1)
+          .find(later => later.wrapper.parentNode === container);
+        container.insertBefore(wrapper, next?.wrapper ?? null);
+        renderRecord(record);
+      }
     } catch (error) {
       finalizeRecord(record, false);
       throw error;
@@ -317,21 +393,18 @@ export function createNotificationService(appContext?: AppContext): Notification
   };
 
   const closeAll = (): void => {
-    forceCloseRecords([...records.values()]);
+    if (!closingAll) duringCloseAll(() => forceCloseRecords([...records.values()]));
   };
 
   const config = (options: Partial<NotificationGlobalConfig>): void => {
     globalConfig = resolveNotificationConfig(options, globalConfig);
     if (Object.prototype.hasOwnProperty.call(options, 'zIndex')) hasExplicitZIndex = true;
-    for (const queue of activeQueues.values()) {
-      const removeCount = queue.length - globalConfig.maxCount;
-      if (removeCount > 0) forceCloseRecords(queue.slice(0, removeCount));
-    }
+    forceCloseRecords([...activeQueues.keys()].flatMap(getExcessRecords));
   };
 
   const notificationFunction = (options: NotificationOptions): NotificationInstance =>
     createNotification(options);
-  return Object.assign(notificationFunction, {
+  const service: NotificationService = Object.assign(notificationFunction, {
     info: createTypedNotification('info'),
     success: createTypedNotification('success'),
     warning: createTypedNotification('warning'),
@@ -340,6 +413,7 @@ export function createNotificationService(appContext?: AppContext): Notification
     closeAll,
     config,
   });
+  return service;
 }
 
 /** 直接导入时使用的进程级服务；Vue 插件和 ConfigProvider 均创建隔离实例。 */
@@ -349,8 +423,10 @@ export const notification = createNotificationService();
 export function useNotificationService(): NotificationService {
   const scope = useComponentServiceScope();
   if (scope) {
-    return scope.getOrCreate(NOTIFICATION_SERVICE_KEY, createNotificationService, service =>
-      service.closeAll()
+    return scope.getOrCreate(
+      NOTIFICATION_SERVICE_KEY,
+      createNotificationService,
+      disposeNotificationService
     );
   }
   return inject(NOTIFICATION_SERVICE_KEY, notification);

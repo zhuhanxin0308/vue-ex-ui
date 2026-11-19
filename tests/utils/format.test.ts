@@ -26,6 +26,17 @@ describe('formatTimestamp', () => {
 
 describe('formatFileSize', () => {
   it.each([
+    [1024 ** 2 - 1, '1 MB'],
+    [1024 ** 3 - 1, '1 GB'],
+    [1024 ** 4 - 1, '1 TB'],
+    [1024 ** 5 - 1, '1 PB'],
+    [1024 ** 8 * 1024, '1024 YB'],
+    [1024 ** 2 - 10, '1023.99 KB'],
+  ])('四舍五入跨过单位边界时将 %s 字节提升为 %s', (value, expected) => {
+    expect(formatFileSize(value)).toBe(expected);
+  });
+
+  it.each([
     [Number.NaN, '0 B'],
     [Number.POSITIVE_INFINITY, '0 B'],
     [-1, '0 B'],

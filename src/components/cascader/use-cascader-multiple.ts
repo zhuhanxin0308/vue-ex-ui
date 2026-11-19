@@ -4,6 +4,7 @@ import type { CascaderOption, CascaderPath, ExCascaderProps } from './types';
 
 interface MultipleOptions {
   props: Readonly<ExCascaderProps>;
+  resetRevision: () => number | undefined;
   blocked: () => boolean;
   getOptions: (path: CascaderPath) => CascaderOption[];
   onChange: (paths: CascaderPath[], options: CascaderOption[][]) => void;
@@ -16,6 +17,7 @@ export function useCascaderMultiple(options: MultipleOptions) {
   const state = useControllableState<CascaderPath[]>({
     controlledValue: () => options.props.selectedPaths,
     defaultValue: () => [],
+    resetRevision: options.resetRevision,
     clone: clonePaths,
   });
   const selected = computed(() => {

@@ -31,6 +31,7 @@
           type="button"
           class="ex-datetime-picker__clear"
           :aria-label="tCommon('clear')"
+          @mousedown.prevent
           @click="handleClear"
         >
           <ExIcon
@@ -482,7 +483,8 @@ const { currentValue, displayValue, hasValue, requestValue } = usePickerValue(
   isRangeMode,
   hasTime,
   period,
-  () => tDatePicker('rangeSeparator')
+  () => tDatePicker('rangeSeparator'),
+  () => formItem?.resetRevision?.value
 );
 const confirmationDates = computed(() =>
   isRangeMode.value ? [rangeStart.value, rangeEnd.value] : [selectedDate.value]
@@ -521,6 +523,7 @@ const pickerClasses = computed(() => [
     'ex-datetime-picker--disabled': disabled.value,
     'ex-datetime-picker--readonly': readonly.value,
     'ex-datetime-picker--open': isOpen.value,
+    [`ex-datetime-picker--${formItem?.status?.value}`]: Boolean(formItem?.status?.value),
   },
   ...normalizeCustomClass(props.class),
 ]);
@@ -533,7 +536,9 @@ const currentPlaceholder = computed(() => {
   const end = props.endPlaceholder || tDatePicker('endDate');
   return `${start} ${tDatePicker('rangeSeparator')} ${end}`;
 });
-const inputAriaLabel = computed(() => props.ariaLabel || currentPlaceholder.value);
+const inputAriaLabel = computed(() =>
+  fieldAriaAttrs.value['aria-labelledby'] ? undefined : props.ariaLabel || currentPlaceholder.value
+);
 
 const weekdays = computed(() => {
   const days = tCalendar('weekdaysShort').split(',');

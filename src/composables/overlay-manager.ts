@@ -242,6 +242,7 @@ export function createFocusTrap(
   container: HTMLElement,
   getContainers: () => HTMLElement[] = () => [container]
 ): () => void {
+  const ownerDocument = container.ownerDocument;
   const handleKeydown = (event: KeyboardEvent) => {
     if (event.key !== 'Tab' || event.defaultPrevented) return;
     const containers = getContainers();
@@ -254,7 +255,7 @@ export function createFocusTrap(
         .composedPath()
         .some(
           target =>
-            target instanceof HTMLElement &&
+            target instanceof (ownerDocument.defaultView?.HTMLElement ?? HTMLElement) &&
             containers.some(owner => owner.contains(target)) &&
             handlers.get(target)?.ownsTab?.(event)
         )
@@ -269,7 +270,7 @@ export function createFocusTrap(
     }
 
     // 每一步都按逻辑子树导航，避免两个 Teleport 容器之间的页面元素截获焦点。
-    const activeIndex = focusable.indexOf(document.activeElement as HTMLElement);
+    const activeIndex = focusable.indexOf(ownerDocument.activeElement as HTMLElement);
     const direction = event.shiftKey ? -1 : 1;
     const nextIndex =
       activeIndex < 0
@@ -281,8 +282,8 @@ export function createFocusTrap(
     focusable[nextIndex]!.focus();
   };
 
-  document.addEventListener('keydown', handleKeydown, true);
-  return () => document.removeEventListener('keydown', handleKeydown, true);
+  ownerDocument.addEventListener('keydown', handleKeydown, true);
+  return () => ownerDocument.removeEventListener('keydown', handleKeydown, true);
 }
 
 /** 在两帧布局稳定后补充初始焦点，保留用户已进入逻辑子树的焦点。 */

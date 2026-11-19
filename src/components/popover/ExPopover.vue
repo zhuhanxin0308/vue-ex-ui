@@ -36,7 +36,7 @@
 
           <!-- 标题 -->
           <div
-            v-if="title || $slots.title"
+            v-if="hasTitle"
             :id="titleId"
             class="ex-popover__title"
           >
@@ -65,22 +65,14 @@
 </template>
 
 <script setup lang="ts">
-import {
-  computed,
-  ref,
-  watch,
-  nextTick,
-  onMounted,
-  onUpdated,
-  onUnmounted,
-  getCurrentInstance,
-  useSlots,
-} from 'vue';
+import { computed, ref, watch, nextTick, onMounted, onUpdated, onUnmounted, useSlots } from 'vue';
 import type { ExPopoverProps, ExPopoverEmits, ExPopoverExposed } from './types';
 import { calcPopperArrowStyle, calcPopperPosition } from '../../utils/popper';
 import { generateId } from '../../utils/id';
 import { usePopupOverlay } from '../../composables/usePopupOverlay';
 import { useFloatingAutoUpdate } from '../../composables/useFloatingAutoUpdate';
+import { useRenderComputed } from '../../composables/useRenderComputed';
+import { hasRenderableContent } from '../../utils/vnode';
 import {
   useAnimation,
   useConfigTheme,
@@ -93,6 +85,7 @@ defineOptions({
 });
 
 const props = withDefaults(defineProps<ExPopoverProps>(), {
+  modelValue: undefined,
   placement: 'top',
   trigger: 'click',
   showArrow: true,
@@ -105,16 +98,8 @@ const props = withDefaults(defineProps<ExPopoverProps>(), {
 });
 
 const emit = defineEmits<ExPopoverEmits>();
-const instance = getCurrentInstance();
 const slots = useSlots();
-const isModelControlled = () => {
-  const vnodeProps = instance?.vnode.props;
-  return Boolean(
-    vnodeProps &&
-    (Object.prototype.hasOwnProperty.call(vnodeProps, 'modelValue') ||
-      Object.prototype.hasOwnProperty.call(vnodeProps, 'model-value'))
-  );
-};
+const isModelControlled = () => props.modelValue !== undefined;
 
 const popoverRef = ref<HTMLDivElement>();
 const popperRef = ref<HTMLDivElement>();
@@ -125,7 +110,9 @@ const isPointerInside = ref(false);
 const isPopoverHovered = ref(false);
 const popperId = `ex-popover-${generateId()}`;
 const titleId = `${popperId}-title`;
-const hasTitle = computed(() => Boolean(props.title || slots.title));
+const hasTitle = useRenderComputed(
+  () => Boolean(props.title) || hasRenderableContent(slots.title?.())
+);
 const configTheme = useConfigTheme();
 const neonEffect = useNeonEffect();
 const animation = useAnimation();
@@ -138,7 +125,7 @@ const {
   active: () => visible.value,
   container: popperRef,
   zIndex: () => props.zIndex ?? popoverZIndex.value,
-  restoreFocus: props.trigger === 'click' || props.trigger === 'contextmenu',
+  restoreFocus: () => props.trigger === 'click' || props.trigger === 'contextmenu',
   onEscape: () => {
     clearTimers();
     requestVisible(false);
@@ -167,9 +154,12 @@ const popoverStyles = computed(() => {
     ...popupOverlayStyles.value,
   };
 
-  if (props.width) {
-    styles.width = typeof props.width === 'number' ? `${props.width}px` : props.width;
-  }
+  styles.width =
+    typeof props.width === 'number'
+      ? Number.isFinite(props.width) && props.width > 0
+        ? `${props.width}px`
+        : 'auto'
+      : props.width;
 
   // 合并自定义浮层样式
   if (props.customStyle) {
@@ -184,15 +174,18 @@ const popoverStyles = computed(() => {
 });
 
 // 方法
+const clearCloseTimer = () => {
+  if (closeTimer.value === undefined) return;
+  clearTimeout(closeTimer.value);
+  closeTimer.value = undefined;
+};
+
 const clearTimers = () => {
-  if (openTimer.value) {
+  if (openTimer.value !== undefined) {
     clearTimeout(openTimer.value);
     openTimer.value = undefined;
   }
-  if (closeTimer.value) {
-    clearTimeout(closeTimer.value);
-    closeTimer.value = undefined;
-  }
+  clearCloseTimer();
 };
 
 const updatePosition = () => {
@@ -240,6 +233,7 @@ const show = () => {
   if (props.disabled) return;
   clearTimers();
   const requestShow = () => {
+    openTimer.value = undefined;
     if (!props.disabled) requestVisible(true);
   };
   if (props.openDelay > 0 && typeof window !== 'undefined') {
@@ -251,7 +245,11 @@ const show = () => {
 
 const hide = () => {
   clearTimers();
-  const requestHide = () => requestVisible(false);
+  if (!visible.value) return;
+  const requestHide = () => {
+    closeTimer.value = undefined;
+    requestVisible(false);
+  };
   if (props.closeDelay > 0 && typeof window !== 'undefined') {
     closeTimer.value = window.setTimeout(requestHide, props.closeDelay);
   } else {
@@ -274,6 +272,9 @@ watch(
     isPopoverHovered.value = false;
   }
 );
+
+// 关闭策略变化会撤销原先的延迟意图，确认流程不能继承早先的关闭计时。
+watch(() => props.closeDelay, clearCloseTimer);
 
 const handleMouseLeave = () => {
   if (props.trigger === 'hover') {
@@ -314,7 +315,7 @@ const handleBlur = (event: FocusEvent) => {
 
 const handleClick = () => {
   if (props.trigger === 'click') {
-    if (visible.value) {
+    if (visible.value || openTimer.value !== undefined) {
       hide();
     } else {
       show();
@@ -325,12 +326,12 @@ const handleClick = () => {
 const handleContextmenu = (event: MouseEvent) => {
   if (props.trigger !== 'contextmenu' || props.disabled) return;
   event.preventDefault();
-  if (visible.value) hide();
+  if (visible.value || openTimer.value !== undefined) hide();
   else show();
 };
 
 const handleClickOutside = (event: MouseEvent) => {
-  if (!popoverRef.value || !popperRef.value) return;
+  if (!popoverRef.value) return;
 
   const target = event.target as Node;
   if (!popoverRef.value.contains(target) && !containsPopupTarget(target)) {
@@ -384,27 +385,35 @@ const removeGlobalListeners = () => {
   window.removeEventListener('resize', handleResize);
   window.removeEventListener('scroll', handleScroll, true);
   document.removeEventListener('click', handleClickOutside);
+  document.removeEventListener('contextmenu', handleClickOutside);
 };
 
 const syncGlobalListeners = () => {
   removeGlobalListeners();
-  if (!overlayActive.value || typeof window === 'undefined' || typeof document === 'undefined')
-    return;
-  window.addEventListener('resize', handleResize);
-  window.addEventListener('scroll', handleScroll, true);
-  if (props.trigger === 'click' || props.trigger === 'contextmenu') {
+  if (typeof window === 'undefined' || typeof document === 'undefined') return;
+  if (overlayActive.value) {
+    window.addEventListener('resize', handleResize);
+    window.addEventListener('scroll', handleScroll, true);
+  }
+  if (
+    (overlayActive.value || openTimer.value !== undefined) &&
+    (props.trigger === 'click' || props.trigger === 'contextmenu')
+  ) {
     document.addEventListener('click', handleClickOutside);
+    if (props.trigger === 'contextmenu') {
+      document.addEventListener('contextmenu', handleClickOutside);
+    }
   }
 };
 
 watch(
-  [overlayActive, () => props.trigger],
+  [overlayActive, () => props.trigger, openTimer],
   () => {
     nextTick(syncTriggerAria);
     syncGlobalListeners();
     if (overlayActive.value) nextTick(updatePosition);
   },
-  { immediate: true }
+  { immediate: true, flush: 'sync' }
 );
 
 watch(

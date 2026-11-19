@@ -289,19 +289,14 @@ provide(tabsContextKey, {
   },
 });
 let isTabsUnmounting = false;
-let removalRequest: { name: string | number; nextName: string | number } | undefined;
 
 onMounted(() =>
   watch(
     panes,
     (nextPanes, previousPanes) => {
-      if (
-        isTabsUnmounting ||
-        selectedTab.value === undefined ||
-        nextPanes.some(pane => pane.name === selectedTab.value)
-      )
-        return;
-      const index = previousPanes.findIndex(pane => pane.name === selectedTab.value);
+      const previousName = selectedTab.value ?? previousPanes.find(pane => !pane.disabled)?.name;
+      if (isTabsUnmounting || nextPanes.some(pane => pane.name === previousName)) return;
+      const index = previousPanes.findIndex(pane => pane.name === previousName);
       // 同一轮卸载会多次更新注册列表，已移除的项只发一次替代请求。
       if (index < 0) return;
       const nextPane =
@@ -310,8 +305,6 @@ onMounted(() =>
           .slice(0, index)
           .reverse()
           .find(pane => !pane.disabled);
-      if (removalRequest?.name === selectedTab.value && removalRequest?.nextName === nextPane?.name)
-        return;
       tabState.request(nextPane?.name);
       if (nextPane) {
         emit('update:modelValue', nextPane.name);
@@ -408,9 +401,11 @@ const updateIndicator = async () => {
 const handleTabClick = (pane: PaneInfo, event: MouseEvent | KeyboardEvent) => {
   if (pane.disabled) return;
 
-  tabState.request(pane.name);
-  emit('update:modelValue', pane.name);
-  emit('change', pane.name);
+  if (pane.name !== activeTab.value) {
+    tabState.request(pane.name);
+    emit('update:modelValue', pane.name);
+    emit('change', pane.name);
+  }
 
   // 只有 MouseEvent 才触发 tab-click 事件
   if (event instanceof MouseEvent) {
@@ -467,28 +462,6 @@ const handleTabKeydown = (pane: PaneInfo, event: KeyboardEvent) => {
 
 const handleTabRemove = (name: string | number) => {
   emit('tab-remove', name);
-
-  // 如果删除的是当前激活的标签页，切换到下一个
-  if (activeTab.value === name) {
-    const index = panes.value.findIndex(p => p.name === name);
-    const nextPane =
-      panes.value.slice(index + 1).find(pane => !pane.disabled) ||
-      panes.value
-        .slice(0, index)
-        .reverse()
-        .find(pane => !pane.disabled);
-    if (nextPane) {
-      // 点击关闭已请求替代项，本轮真实卸载无需再次发出相同请求。
-      const pending = { name, nextName: nextPane.name };
-      removalRequest = pending;
-      nextTick(() => {
-        if (removalRequest === pending) removalRequest = undefined;
-      });
-      tabState.request(nextPane.name);
-      emit('update:modelValue', nextPane.name);
-      emit('change', nextPane.name);
-    }
-  }
 };
 
 const handleTabAdd = () => {

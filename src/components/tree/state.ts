@@ -7,6 +7,7 @@ export interface TreeStateLookup {
   expanded: ComputedRef<ReadonlySet<string>>;
   selected: ComputedRef<ReadonlySet<string>>;
   checked: ComputedRef<ReadonlySet<string>>;
+  disabledChecks: ComputedRef<ReadonlySet<string>>;
   halfChecked: ComputedRef<ReadonlySet<string>>;
   isExpandable: (node: TreeNode) => boolean;
   getLoadState: (key: string) => TreeNodeLoadState;

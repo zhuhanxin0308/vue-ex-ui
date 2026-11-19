@@ -51,6 +51,7 @@
               type="button"
               class="ex-select__tag-close"
               :aria-label="t('removeTagAria', { label: tag.label })"
+              @mousedown.prevent
               @keydown.stop
               @click.stop="removeTag(tag.value)"
             >
@@ -411,6 +412,7 @@ import {
   useComponentSize,
   useConfigTheme,
   useNeonEffect,
+  useThemeOverrides,
   useZIndexLayer,
 } from '../config-provider/composables';
 import { useFormItem } from '../form/use-form-item';
@@ -421,11 +423,10 @@ import {
   SELECT_DEFAULT_REMOTE_DEBOUNCE,
   SELECT_DROPDOWN_OPTIONS_MAX_HEIGHT,
 } from './constants';
-import { calculateSelectDropdownPosition } from './position';
+import { useSelectPosition } from './use-select-position';
 import { getOptionKey, isGroup, useSelectOptions } from './use-select-options';
 import type { SelectVirtualRow } from './use-select-options';
 import { usePopupOverlay } from '../../composables/usePopupOverlay';
-import { useViewportPosition } from '../../composables/useFloatingAutoUpdate';
 import { isComposingKeyboardEvent } from '../../utils/keyboard';
 import { useSelectAria } from './use-select-aria';
 import { useSelectRemote } from './use-select-remote';
@@ -480,8 +481,8 @@ const dropdownVisible = ref(false);
 const searchQuery = ref('');
 const composing = ref(false);
 const hoverIndex = ref(-1);
-const dropdownStyles = ref<Record<string, string>>({});
 const configTheme = useConfigTheme();
+const themeOverrides = useThemeOverrides();
 const neonEffect = useNeonEffect();
 const animation = useAnimation();
 const dropdownZIndex = useZIndexLayer('dropdown');
@@ -491,7 +492,11 @@ const { styles: popupOverlayStyles, containsTarget: containsPopupTarget } = useP
   zIndex: () => dropdownZIndex.value,
   onEscape: () => hideDropdown(true),
 });
-const availableDropdownHeight = ref(SELECT_DROPDOWN_OPTIONS_MAX_HEIGHT);
+const { availableDropdownHeight, dropdownStyles, updateDropdownPosition } = useSelectPosition(
+  triggerRef,
+  dropdownRef,
+  dropdownVisible
+);
 
 // 唯一 id 前缀：用于 option id 与 aria-activedescendant 关联（屏幕阅读器播报高亮项）
 const baseId = generateId('ex-select');
@@ -535,7 +540,7 @@ const listboxAttrs = computed(() => ({
   'aria-labelledby': controlId.value,
   'aria-multiselectable': props.multiple || undefined,
   'aria-busy': remoteLoading.value,
-  style: popupOverlayStyles.value,
+  style: themeOverrides.value,
 }));
 const retryRemote = () => {
   if (!remoteFailure.value) return;
@@ -633,45 +638,6 @@ const findEnabledIndex = (from: number, direction: 1 | -1): number => {
   }
   return -1;
 };
-
-// 更新下拉菜单位置
-const updateDropdownPosition = () => {
-  if (!triggerRef.value || !dropdownRef.value) return;
-
-  const triggerRect = triggerRef.value.getBoundingClientRect();
-  const viewportWidth = window.innerWidth;
-  const viewportHeight = window.innerHeight;
-  const dropdownHeight = dropdownRef.value.offsetHeight;
-  const position = calculateSelectDropdownPosition(
-    triggerRect,
-    dropdownHeight,
-    viewportWidth,
-    viewportHeight
-  );
-
-  // 同时限制浮层和列表高度，避免小视口中内容溢出或虚拟列表行高失配。
-  availableDropdownHeight.value = position.optionsMaxHeight;
-
-  dropdownStyles.value = {
-    top: `${position.top}px`,
-    left: `${position.left}px`,
-    minWidth: `${position.width}px`,
-    maxWidth: `${position.maxWidth}px`,
-    maxHeight: `${position.maxHeight}px`,
-    zIndex: String(dropdownZIndex.value),
-    '--ex-select-options-max-height': `${position.optionsMaxHeight}px`,
-  };
-};
-
-// 先恢复完整内容高度，再测量下拉列表，避免重复定位产生高度振荡。
-useViewportPosition(dropdownVisible, () => {
-  availableDropdownHeight.value = SELECT_DROPDOWN_OPTIONS_MAX_HEIGHT;
-  dropdownRef.value?.style.removeProperty('max-height');
-  dropdownRef.value?.style.removeProperty('--ex-select-options-max-height');
-  void nextTick(() => {
-    if (dropdownVisible.value) updateDropdownPosition();
-  });
-});
 
 // 事件处理
 const handleTriggerClick = () => {

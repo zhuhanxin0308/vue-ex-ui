@@ -43,7 +43,7 @@
               class="ex-dialog__header"
             >
               <div
-                v-if="$slots.icon"
+                v-if="hasIcon"
                 class="ex-dialog__icon"
               >
                 <slot name="icon"></slot>
@@ -125,6 +125,8 @@ import ExIcon from '../icon/ExIcon.vue';
 import { useLocale } from '../../locale';
 import { useOverlay, useOverlayTransition } from '../../composables/useOverlay';
 import { useGuardedVisibility } from '../../composables/useGuardedVisibility';
+import { useRenderComputed } from '../../composables/useRenderComputed';
+import { hasRenderableContent } from '../../utils/vnode';
 import {
   useAnimation,
   useGlobalSize,
@@ -190,16 +192,17 @@ const readTextAttribute = (name: string): string | undefined => {
   const value = attrs[name];
   return typeof value === 'string' && value.trim() ? value.trim() : undefined;
 };
-const nativeAriaLabel = computed(() => readTextAttribute('aria-label'));
-const nativeLabelledBy = computed(() => readTextAttribute('aria-labelledby'));
-const dialogRole = computed(() =>
+const nativeAriaLabel = useRenderComputed(() => readTextAttribute('aria-label'));
+const nativeLabelledBy = useRenderComputed(() => readTextAttribute('aria-labelledby'));
+const dialogRole = useRenderComputed(() =>
   readTextAttribute('role')?.toLowerCase() === 'alertdialog' ? 'alertdialog' : 'dialog'
 );
-const panelAttrs = computed(() =>
+const panelAttrs = useRenderComputed(() =>
   Object.fromEntries(Object.entries(attrs).filter(([key]) => !CONTROLLED_PANEL_ATTRS.has(key)))
 );
 
 const { visible, hasOpened, requestOpen, requestClose } = useGuardedVisibility({
+  skipRedundantRequests: true,
   modelValue: () => props.modelValue,
   beforeOpen: () => props.beforeOpen,
   beforeClose: () => props.beforeClose,
@@ -212,7 +215,10 @@ const { visible, hasOpened, requestOpen, requestClose } = useGuardedVisibility({
 const shouldRender = computed(
   () => overlayActive.value || (hasOpened.value && !props.destroyOnClose)
 );
-const hasTitle = computed(() => Boolean(props.title || slots.title));
+const hasTitle = useRenderComputed(
+  () => Boolean(props.title) || hasRenderableContent(slots.title?.())
+);
+const hasIcon = useRenderComputed(() => hasRenderableContent(slots.icon?.()));
 const accessibleLabel = computed(() => {
   const explicitLabel = props.ariaLabel?.trim() || nativeAriaLabel.value;
   if (explicitLabel) return explicitLabel;
@@ -223,9 +229,11 @@ const labelledBy = computed(() => {
   if (props.ariaLabel?.trim() || nativeAriaLabel.value) return undefined;
   return nativeLabelledBy.value ?? (hasTitle.value ? titleId : undefined);
 });
-const showHeader = computed(() => Boolean(hasTitle.value || slots.icon || props.showClose));
-const hasFooter = computed(() =>
-  Boolean(slots.footer || (props.showFooter && (props.showConfirm || props.showCancel)))
+const showHeader = computed(() => hasTitle.value || hasIcon.value || props.showClose);
+const hasFooter = useRenderComputed(
+  () =>
+    hasRenderableContent(slots.footer?.()) ||
+    (props.showFooter && (props.showConfirm || props.showCancel))
 );
 
 const wrapperClasses = computed(() => [
@@ -266,7 +274,7 @@ const { zIndex: overlayZIndex, active: overlayActive } = useOverlay({
   active: () => visible.value,
   container: dialogContainerRef,
   zIndex: () => props.zIndex ?? baseZIndex.value,
-  lockScroll: () => props.lockScroll,
+  lockScroll: () => hasMask.value && props.lockScroll,
   closeOnEscape: () => props.closeOnPressEscape,
   onEscape: async () => {
     await requestCloseIntent('api');

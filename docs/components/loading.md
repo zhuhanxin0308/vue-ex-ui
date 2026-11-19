@@ -399,6 +399,8 @@ const syncing = ref(false);
 
 组件与 `v-loading` 指令均继承最近的 `ExConfigProvider` 的尺寸和语言配置；显式设置的尺寸优先，未配置全局尺寸时使用下表默认值。
 
+单独执行 `app.use(ExLoading)` 会同时注册组件、`v-loading` 指令和 App 隔离的 `$loading` 服务。也可以按需导入 `LoadingPlugin` 安装服务，或导入 `vLoading` 在局部组件中注册指令。重复调用 `showLoading()` 时，省略 `target` 会恢复默认全屏定位；已有实例的 `updateConfig()` 保持局部合并语义。
+
 ### Props
 
 | 参数          | 类型                                                 | 默认值      |

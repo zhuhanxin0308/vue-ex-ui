@@ -55,7 +55,7 @@
                     />
                     <ExIcon
                       v-else-if="row.item.icon"
-                      :src="row.item.icon"
+                      v-bind="resolveIconSource(row.item.icon)"
                       :size="iconSize"
                       class="ex-list__item-icon"
                       aria-hidden="true"
@@ -140,6 +140,7 @@ import { useRenderComputed } from '../../composables/useRenderComputed';
 import { useI18n, useLocale } from '../../locale';
 import ExEmpty from '../empty/ExEmpty.vue';
 import ExIcon from '../icon/ExIcon.vue';
+import { resolveIconSource } from '../icon/icon-utils';
 import ExLoading from '../loading/ExLoading.vue';
 import { useComponentSize } from '../config-provider/composables';
 import { getListItemKeyCandidate, normalizeListGrid, normalizeListSize } from './list-utils';

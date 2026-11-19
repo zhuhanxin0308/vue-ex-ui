@@ -1,3 +1,4 @@
+import { toRaw } from 'vue';
 import { usesNativeIdentity } from './native-identity';
 
 type ConstructableView = new (
@@ -11,6 +12,7 @@ interface CloneContext {
   hydrated: WeakSet<object>;
   hydrating: WeakSet<object>;
   materializeAccessors: boolean;
+  unwrapProxy?: boolean;
 }
 
 type CloneableBuffer = ArrayBuffer | SharedArrayBuffer;
@@ -65,7 +67,8 @@ const cloneOwnProperties = (source: object, target: object, context: CloneContex
   context.hydrated.add(source);
 };
 
-const cloneValue = (value: unknown, context: CloneContext): unknown => {
+const cloneValue = (input: unknown, context: CloneContext): unknown => {
+  const value = context.unwrapProxy ? toRaw(input) : input;
   if (value === null || typeof value !== 'object') return value;
   const existing = context.seen.get(value);
   if (existing !== undefined) return existing;
@@ -129,12 +132,32 @@ const cloneValue = (value: unknown, context: CloneContext): unknown => {
   return cloned;
 };
 
+const createCloneContext = (materializeAccessors: boolean): CloneContext => ({
+  seen: new WeakMap(),
+  hydrated: new WeakSet(),
+  hydrating: new WeakSet(),
+  materializeAccessors,
+});
+
 /** 深度克隆常用结构，保留循环引用、属性描述符与类实例原型。 */
 export function deepClone<T>(value: T, options?: { materializeAccessors?: boolean }): T {
-  return cloneValue(value, {
-    seen: new WeakMap(),
-    hydrated: new WeakSet(),
-    hydrating: new WeakSet(),
-    materializeAccessors: options?.materializeAccessors === true,
-  }) as T;
+  return cloneValue(value, createCloneContext(options?.materializeAccessors === true)) as T;
+}
+
+/** 读取公开表单字段，保留 Vue 的根字段解包、共享引用与循环回指。 */
+export function cloneEnumerableFields(model: Record<string, unknown>): Record<string, unknown> {
+  const result: Record<string, unknown> = {};
+  const context = createCloneContext(true);
+  context.unwrapProxy = true;
+  context.seen.set(toRaw(model), result);
+  for (const key of Reflect.ownKeys(model)) {
+    if (!Object.prototype.propertyIsEnumerable.call(model, key)) continue;
+    Object.defineProperty(result, key, {
+      value: cloneValue(Reflect.get(model, key), context),
+      writable: true,
+      configurable: true,
+      enumerable: true,
+    });
+  }
+  return result;
 }

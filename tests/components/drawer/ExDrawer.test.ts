@@ -248,6 +248,9 @@ describe('ExDrawer', () => {
     expect(beforeClose).toHaveBeenCalledTimes(1);
     expect(wrapper!.emitted('update:modelValue')).toBeUndefined();
     exposed.open();
+    expect(wrapper!.emitted('update:modelValue')).toBeUndefined();
+    await wrapper!.setProps({ modelValue: false });
+    exposed.open();
     expect(wrapper!.emitted('update:modelValue')?.at(-1)).toEqual([true]);
   });
 

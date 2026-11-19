@@ -120,6 +120,9 @@ describe('ExCalendar', () => {
     expect(month.element.tagName).toBe('BUTTON');
 
     await month.trigger('keydown', { key: 'Enter' });
+    expect(wrapper.emitted('mode-change')).toBeUndefined();
+    await month.trigger('click');
+    expect(wrapper.emitted('mode-change')).toHaveLength(1);
     expect(wrapper.emitted('mode-change')?.at(-1)?.[0]).toBe('month');
   });
 
@@ -219,6 +222,10 @@ describe('ExCalendar', () => {
 
     expect(event.element.tagName).toBe('BUTTON');
     await event.trigger('keydown', { key: 'Enter' });
+    expect(wrapper.emitted('event-click')).toBeUndefined();
+    // jsdom 不合成原生激活点击，此处补上浏览器执行的最后一步。
+    await event.trigger('click');
+    expect(wrapper.emitted('event-click')).toHaveLength(1);
     expect(wrapper.emitted('event-click')?.at(-1)?.[0]).toMatchObject({ id: 'event-1' });
   });
 
@@ -298,7 +305,7 @@ describe('ExCalendar', () => {
     const exposed = wrapper.vm as unknown as ExCalendarExposed;
 
     expect(wrapper.findAll('.ex-calendar__year-month')).toHaveLength(12);
-    await wrapper.findAll('.ex-calendar__year-month')[4].trigger('keydown', { key: 'Enter' });
+    await wrapper.findAll('.ex-calendar__year-month')[4].trigger('click');
     expect(wrapper.emitted('update:mode')?.at(-1)).toEqual(['month']);
     expect(wrapper.classes()).toContain('ex-calendar--year');
     await wrapper.setProps({ mode: 'month' });

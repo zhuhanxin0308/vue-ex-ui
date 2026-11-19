@@ -56,7 +56,8 @@ export function useWatermark(
   let renderRequestId = 0;
   let mutationObserver: MutationObserver | null = null;
   let overlaySnapshot: ElementSnapshot | null = null;
-  let internalDomUpdate = false;
+  let internalUpdates = 0;
+  let tileCommitted = false;
   let resizeListener: (() => void) | null = null;
   let throttledResize: ReturnType<typeof throttle> | null = null;
   let renderController: AbortController | null = null;
@@ -87,10 +88,13 @@ export function useWatermark(
   };
 
   const finishInternalDomUpdate = async (): Promise<void> => {
-    internalDomUpdate = true;
-    await nextTick();
-    captureProtectionSnapshot();
-    internalDomUpdate = false;
+    internalUpdates += 1;
+    try {
+      await nextTick();
+      if (mounted && tileCommitted) captureProtectionSnapshot();
+    } finally {
+      internalUpdates -= 1;
+    }
   };
 
   /** 重绘当前水印；只提交最后一次异步请求的结果。 */
@@ -117,7 +121,9 @@ export function useWatermark(
     overlayDataUrl.value = tile.dataUrl;
     tileWidth.value = tile.width;
     tileHeight.value = tile.height;
+    tileCommitted = true;
     await finishInternalDomUpdate();
+    startAntiTamper();
   };
 
   const toDataURL = (): string => overlayDataUrl.value;
@@ -140,24 +146,19 @@ export function useWatermark(
     const overlay = overlayRef.value;
     if (!container || !overlay || !overlaySnapshot) return;
 
-    mutationObserver?.disconnect();
     if (overlay.parentElement !== container) container.insertBefore(overlay, container.firstChild);
 
     overlay.className = overlaySnapshot.className;
     restoreAttribute(overlay, 'style', overlaySnapshot.style);
     restoreAttribute(overlay, 'aria-hidden', overlaySnapshot.ariaHidden);
     restoreAttribute(overlay, 'hidden', overlaySnapshot.hidden);
-    observeProtectedElements();
-
     if (wasRemoved) callbacks.onRemove?.();
   };
 
   const startAntiTamper = (): void => {
-    if (!mounted || !props.antiTamper || !containerRef.value || !overlayRef.value) return;
-    mutationObserver?.disconnect();
-    captureProtectionSnapshot();
+    if (!mounted || !props.antiTamper || !overlaySnapshot || mutationObserver) return;
     mutationObserver = new MutationObserver(mutations => {
-      if (internalDomUpdate) return;
+      if (internalUpdates) return;
 
       const container = containerRef.value;
       const overlay = overlayRef.value;
@@ -168,15 +169,24 @@ export function useWatermark(
       const wasModified = mutations.some(
         mutation => mutation.type === 'attributes' && mutation.target === overlay
       );
-      if (
-        mutations.some(mutation => mutation.type === 'attributes' && mutation.target === container)
-      ) {
-        // 只恢复组件管理的声明，保留透传属性、v-show 和业务样式。
-        if (!container.classList.contains('ex-watermark')) container.classList.add('ex-watermark');
-        callbacks.restoreContainerStyle?.(container);
+      const containerChanged = mutations.some(
+        mutation => mutation.type === 'attributes' && mutation.target === container
+      );
+      if (!wasRemoved && !wasModified && !containerChanged) return;
+      mutationObserver?.disconnect();
+      try {
+        if (containerChanged) {
+          // 只恢复组件管理的声明，保留透传属性、v-show 和业务样式。
+          if (!container.classList.contains('ex-watermark'))
+            container.classList.add('ex-watermark');
+          callbacks.restoreContainerStyle?.(container);
+        }
+        if (wasRemoved || wasModified) restoreProtectedElements(wasRemoved);
+      } finally {
+        observeProtectedElements();
       }
-      if (wasRemoved || wasModified) restoreProtectedElements(wasRemoved);
     });
+    if (overlayRef.value?.parentElement !== containerRef.value) restoreProtectedElements(true);
     observeProtectedElements();
   };
 
@@ -297,7 +307,6 @@ export function useWatermark(
     mounted = true;
     await nextTick();
     bindResizeListener();
-    startAntiTamper();
     await refresh();
   });
 

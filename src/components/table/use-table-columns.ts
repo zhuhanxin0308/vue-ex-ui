@@ -1,6 +1,9 @@
 import { computed, type ComputedRef } from 'vue';
 import type { TableColumn } from './types';
 
+/** 固定表头应覆盖固定表体，两者均位于普通单元格上方。 */
+export const TABLE_STICKY_LAYER = { body: 2, header: 3 } as const;
+
 interface TableHeaderCell {
   column: TableColumn;
   path: string;
@@ -18,7 +21,8 @@ const toCssLength = (value: string | number) => (typeof value === 'number' ? `${
 export function useTableColumns(
   columns: ComputedRef<TableColumn[]>,
   getWidth: (column: TableColumn) => string | number | undefined = column => column.width,
-  hasManagedWidth: (column: TableColumn) => boolean = () => false
+  hasManagedWidth: (column: TableColumn) => boolean = () => false,
+  auxiliaryOffset: (side: 'left' | 'right') => number = () => 0
 ) {
   const structure = computed(() => {
     const leaves: TableColumn[] = [];
@@ -79,7 +83,7 @@ export function useTableColumns(
   const fixedOffsets = computed(() => {
     const build = (side: 'left' | 'right') => {
       const offsets = Array<string>(leafColumns.value.length).fill('0px');
-      let pixels = 0;
+      let pixels = auxiliaryOffset(side);
       const lengths: string[] = [];
       for (
         let index = side === 'left' ? 0 : leafColumns.value.length - 1;
@@ -119,7 +123,7 @@ export function useTableColumns(
     if (fixed && index >= 0) {
       style.position = 'sticky';
       style[fixed] = fixedOffsets.value[fixed][index] ?? '0px';
-      style.zIndex = header ? '3' : '2';
+      style.zIndex = String(header ? TABLE_STICKY_LAYER.header : TABLE_STICKY_LAYER.body);
     }
     return style;
   };

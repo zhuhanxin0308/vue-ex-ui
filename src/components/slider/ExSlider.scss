@@ -13,6 +13,15 @@
   user-select: none;
   @include transition(opacity);
 
+  @each $status in success, warning, error {
+    &--#{$status} &__thumb {
+      border-color: var(--ex-color-#{$status});
+    }
+    &--#{$status} &__bar {
+      background: var(--ex-color-#{$status});
+    }
+  }
+
   // 禁用状态
   &--disabled {
     opacity: 0.5;

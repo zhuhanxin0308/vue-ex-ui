@@ -227,20 +227,22 @@ const props = withDefaults(defineProps<ExColorPickerProps>(), {
 });
 
 const emit = defineEmits<ExColorPickerEmits>();
-const colorState = useControllableState<string>({
-  controlledValue: () => props.modelValue,
-  defaultValue: '',
-  onChange: value => emit('update:modelValue', value),
-});
 const attrs = useAttrs();
 const { t } = useLocale('colorPicker');
 const {
   formItem,
   disabled,
+  readonly,
   interactive,
   size: componentSize,
   ariaAttrs: fieldAriaAttrs,
 } = useFormFieldState(props);
+const colorState = useControllableState<string>({
+  controlledValue: () => props.modelValue,
+  defaultValue: '',
+  resetRevision: () => formItem?.resetRevision?.value,
+  onChange: value => emit('update:modelValue', value),
+});
 const instanceId = useId();
 const panelId = `ex-color-picker-panel-${instanceId}`;
 const inputId = `ex-color-picker-input-${instanceId}`;
@@ -279,7 +281,12 @@ const hsva = reactive({ h: 0, s: 1, v: 1, a: 1 });
 const rootClasses = computed(() => [
   'ex-color-picker',
   `ex-color-picker--${componentSize.value}`,
-  { 'is-disabled': disabled.value, 'is-active': visible.value },
+  {
+    'is-disabled': disabled.value,
+    'is-readonly': readonly.value,
+    'is-active': visible.value,
+    [`is-${formItem?.status?.value}`]: Boolean(formItem?.status?.value),
+  },
   ...normalizeCustomClass(props.class),
 ]);
 const rootStyle = computed(() => props.style || undefined);

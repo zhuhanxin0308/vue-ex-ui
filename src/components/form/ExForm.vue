@@ -27,6 +27,7 @@ import type {
 } from './types';
 import { useI18n } from '../../locale';
 import { logger } from '../../utils/logger';
+import { cloneEnumerableFields } from '../../utils/clone';
 import { getFieldValue as getModelValue, setFieldValue as setModelValue } from './utils';
 import { FORM_CONTEXT_INJECTION_KEY } from './use-form-item';
 import { useComponentSize } from '../config-provider';
@@ -442,14 +443,13 @@ function getFieldsValue(fieldProps?: string[]): Record<string, unknown> {
   }
 
   if (fieldProps) {
-    const values: Record<string, unknown> = {};
-    fieldProps.forEach(prop => {
-      values[prop] = getModelValue(formContext.model, prop);
-    });
-    return values;
+    const values = Object.fromEntries(
+      fieldProps.map(prop => [prop, getModelValue(formContext.model, prop)])
+    );
+    return cloneEnumerableFields(values);
   }
 
-  return { ...formContext.model };
+  return cloneEnumerableFields(formContext.model);
 }
 
 // 设置多个字段值（支持 a.b.c 嵌套路径）
@@ -469,6 +469,7 @@ function handleSubmit(event: Event) {
 }
 
 function handleReset(event: Event) {
+  event.preventDefault();
   resetFields();
   emit('reset', event);
 }

@@ -89,6 +89,8 @@ import { ref, computed, useSlots, nextTick } from 'vue';
 import type { ExSwitchProps, ExSwitchEmits, ExSwitchInstance, SwitchValue } from './types';
 import { useFormFieldState } from '../form/use-form-item';
 import { useControllableState } from '../../composables/useControllableState';
+import { useRenderComputed } from '../../composables/useRenderComputed';
+import { hasRenderableContent } from '../../utils/vnode';
 import { isComposingKeyboardEvent } from '../../utils/keyboard';
 
 defineOptions({
@@ -114,6 +116,7 @@ const isFocused = ref(false);
 const {
   formItem,
   disabled,
+  readonly,
   interactive,
   size: componentSize,
   ariaAttrs: fieldAriaAttrs,
@@ -132,8 +135,12 @@ const canChange = computed(() => interactive.value && !props.loading);
 
 const slots = useSlots();
 
-const hasText = computed(() => {
-  return !!(props.activeText || props.inactiveText || slots.active || slots.inactive);
+const hasText = useRenderComputed(() => {
+  return (
+    Boolean(props.activeText || props.inactiveText) ||
+    hasRenderableContent(slots.active?.()) ||
+    hasRenderableContent(slots.inactive?.())
+  );
 });
 
 const switchClasses = computed(() => {
@@ -141,11 +148,13 @@ const switchClasses = computed(() => {
 
   if (isChecked.value) classes.push('is-checked');
   if (disabled.value) classes.push('is-disabled');
+  if (readonly.value) classes.push('is-readonly');
   if (props.loading) classes.push('is-loading');
   if (isFocused.value) classes.push('is-focused');
   if (hasText.value) classes.push('has-text');
   if (props.inlinePrompt && hasText.value) classes.push('has-inline-prompt');
-  if (props.validateStatus) classes.push(`is-${props.validateStatus}`);
+  const status = props.validateStatus || formItem?.status?.value;
+  if (status) classes.push(`is-${status}`);
   if (props.customClass) classes.push(props.customClass);
 
   return classes;
@@ -181,11 +190,8 @@ const coreStyle = computed(() => {
 
 // 事件处理
 const handleClick = (event: MouseEvent) => {
-  if (!canChange.value) {
-    event.preventDefault();
-    return;
-  }
-
+  // 点击壳体由组件负责激活，取消外层 label 对原生控件的第二次点击。
+  event.preventDefault();
   toggle();
 };
 

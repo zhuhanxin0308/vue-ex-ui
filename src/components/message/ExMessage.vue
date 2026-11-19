@@ -211,10 +211,12 @@ const handleFocusOut = (event: FocusEvent): void => {
   resumeTimer('focus');
 };
 
-watch(normalizedDuration, duration => {
-  remaining = duration;
-  if (pauseReasons.size === 0) startTimer();
-});
+const resetTimer = (duration = normalizedDuration.value): void => {
+  remaining = normalizeMessageDuration(duration);
+  startTimer();
+};
+
+watch(normalizedDuration, resetTimer);
 
 const handleAfterLeave = (): void => emit('destroy');
 
@@ -228,6 +230,7 @@ onUnmounted(clearTimer);
 
 defineExpose<ExMessageExposed>({
   close,
+  resetTimer,
   isVisible: () => visible.value,
   getElement: () => messageRef.value,
 });

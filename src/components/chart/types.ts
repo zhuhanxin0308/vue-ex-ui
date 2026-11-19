@@ -189,7 +189,7 @@ export interface ExChartExposed {
     backgroundColor?: string;
   }) => string;
   /** 获取当前图表的 SVG 数据 URL，支持 Canvas 与 SVG 主实例 */
-  getSvgDataURL: () => string;
+  getSvgDataURL: (options?: { backgroundColor?: string }) => string;
   /** 转换坐标到像素 */
   convertToPixel: (finder: unknown, value: unknown) => number | number[];
   /** 转换像素到坐标 */

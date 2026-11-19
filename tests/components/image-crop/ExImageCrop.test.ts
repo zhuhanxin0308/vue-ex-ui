@@ -347,6 +347,13 @@ describe('ExImageCrop', () => {
     );
   });
 
+  it('连续小数步进到达下限时立即禁用缩小', async () => {
+    const current = await mountCrop({ zoomStep: 0.1, minZoom: 0.7 });
+    const button = current.get<HTMLButtonElement>('[aria-label="Zoom out"]');
+    for (let i = 0; i < 3; i++) await button.trigger('click');
+    expect(button.element.disabled).toBe(true);
+  });
+
   it('编码参数变化不重置选区，缩放边界变化会收敛当前状态', async () => {
     const current = await mountCrop();
     const exposed = current.vm as unknown as ExImageCropExposed;

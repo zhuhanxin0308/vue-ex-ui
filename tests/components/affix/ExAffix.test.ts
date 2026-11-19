@@ -19,6 +19,54 @@ const rect = (values: Partial<DOMRect>): DOMRect =>
   }) as DOMRect;
 
 describe('ExAffix', () => {
+  it('默认吸顶时占位容器保持流式宽度，固定内容跟随布局重新测量', async () => {
+    const wrapper = mount(ExAffix);
+    const placeholder = wrapper.element as HTMLElement;
+    let layoutWidth = 300;
+    vi.spyOn(placeholder, 'getBoundingClientRect').mockImplementation(() =>
+      rect({ top: -5, width: parseFloat(placeholder.style.width) || layoutWidth })
+    );
+    wrapper.vm.updatePosition();
+    await nextTick();
+    const content = wrapper.get<HTMLElement>('.ex-affix__content').element;
+    expect(content.style.width).toBe('300px');
+    layoutWidth = 180;
+    wrapper.vm.updatePosition();
+    await nextTick();
+    expect(content.style.width).toBe('180px');
+    wrapper.unmount();
+  });
+
+  it('固有宽度布局中保留固定控件的占位，并按新的可用空间重新测量', async () => {
+    const wrapper = mount(ExAffix, { slots: { default: () => h('input') } });
+    const placeholder = wrapper.element as HTMLElement;
+    const content = wrapper.get<HTMLElement>('.ex-affix__content').element;
+    const input = wrapper.get('input').element;
+    let availableWidth = 180;
+    const intrinsicWidth = 240;
+    // 模拟收缩包裹布局：只有处于普通流的子节点才贡献固有宽度。
+    const layout = () => {
+      const widths = Array.from(placeholder.children, child => {
+        const { style } = child as HTMLElement;
+        if (style.position === 'fixed' || style.display === 'none') return 0;
+        return child === content ? intrinsicWidth : parseFloat(style.width) || 0;
+      });
+      return rect({ top: -5, width: Math.min(availableWidth, Math.max(...widths)) });
+    };
+    vi.spyOn(placeholder, 'getBoundingClientRect').mockImplementation(layout);
+    wrapper.vm.updatePosition();
+    await nextTick();
+    expect(content.style.width).toBe('180px');
+    expect(layout().width).toBe(180);
+    availableWidth = 300;
+    wrapper.vm.updatePosition();
+    await nextTick();
+    expect(content.style.width).toBe('240px');
+    expect(layout().width).toBe(240);
+    expect(wrapper.get('input').element).toBe(input);
+    wrapper.unmount();
+  });
+
   afterEach(() => {
     vi.restoreAllMocks();
     vi.unstubAllGlobals();

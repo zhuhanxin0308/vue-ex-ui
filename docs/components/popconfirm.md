@@ -624,6 +624,7 @@ const beforeConfirm = () => {
 
 | 属性              | 说明             | 类型                                                                     | 默认值      |
 | ----------------- | ---------------- | ------------------------------------------------------------------------ | ----------- |
+| `visible`         | 受控显示状态     | `boolean`                                                                | `undefined` |
 | `title`           | 确认框标题       | `string`                                                                 | `''`        |
 | `description`     | 确认框描述       | `string`                                                                 | `''`        |
 | `type`            | 确认框类型       | `'default' \| 'primary' \| 'success' \| 'warning' \| 'danger' \| 'info'` | `'warning'` |
@@ -640,6 +641,8 @@ const beforeConfirm = () => {
 | `popup-class`     | 自定义类名       | `string`                                                                 | `''`        |
 | `popup-style`     | 自定义样式       | `Record<string, string \| number>`                                       | `undefined` |
 | `before-confirm`  | 确认前的回调     | `() => boolean \| Promise<boolean>`                                      | `undefined` |
+
+使用 `v-model:visible` 控制显示状态；不传或传入 `undefined` 时由组件管理。异步确认期间会忽略外部点击、Escape 和鼠标离开的关闭请求；父级更新 `visible` 或显式调用 `hide()` 仍可取消当前操作。`icon` 同时接受内置图标名称和图片地址。
 
 ### Popconfirm Events
 

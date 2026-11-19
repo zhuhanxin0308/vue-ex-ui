@@ -6,7 +6,7 @@
     :role="isClickable ? 'button' : undefined"
     :tabindex="isClickable && !props.disabled ? 0 : undefined"
     :aria-current="isCurrent ? 'step' : undefined"
-    :aria-disabled="props.disabled"
+    :aria-disabled="props.disabled || undefined"
     @click="handleClick"
     @keydown="handleKeydown"
   >
@@ -17,12 +17,8 @@
         class="ex-step__icon"
         :style="iconStyles"
       >
-        <!-- 进度点模式：不显示任何内容，只显示圆点 -->
-        <template v-if="stepsContext.progressDot.value">
-          <!-- 空的，只显示圆点边框 -->
-        </template>
-        <!-- 普通模式：显示图标或数字 -->
-        <template v-else>
+        <!-- 普通模式显示图标或数字，进度点模式只保留外层圆点。 -->
+        <template v-if="!stepsContext?.progressDot.value">
           <!-- 自定义图标插槽 -->
           <slot name="icon">
             <!-- 默认图标：根据状态显示 -->
@@ -90,7 +86,15 @@
 
 <script setup lang="ts">
 import { normalizeCustomClass } from '../../composables/useCustomClass';
-import { computed, inject, onBeforeUnmount, ref } from 'vue';
+import {
+  computed,
+  getCurrentInstance,
+  inject,
+  onBeforeUnmount,
+  onMounted,
+  onServerPrefetch,
+  ref,
+} from 'vue';
 import type { ExStepProps, ExStepExposed } from './types';
 import { stepsContextKey } from './context';
 import ExIcon from '../icon/ExIcon.vue';
@@ -108,28 +112,49 @@ const props = withDefaults(defineProps<ExStepProps>(), {
 const stepRef = ref<HTMLDivElement>();
 
 // 从父组件注入上下文
-const stepsContext = inject(stepsContextKey)!;
+const stepsContext = inject(stepsContextKey, null);
 
 // 注册步骤（索引由父组件按文档顺序实时计算，支持动态增删/重排）
 const uid = Symbol('ex-step');
-stepsContext.registerStep(uid, () => stepRef.value ?? null);
-const stepIndex = computed(() => stepsContext.getStepIndex(uid));
+stepsContext?.registerStep(
+  uid,
+  () => stepRef.value ?? null,
+  () => props.disabled
+);
+const stepIndex = computed(() => stepsContext?.getStepIndex(uid) ?? 0);
+
+// 服务端先让同批包装组件完成注册，再输出各步的末项标记和连接线。
+if (stepsContext) onServerPrefetch(() => Promise.resolve());
+
+// 水合会依次创建子实例，首帧复用服务端的末项标记，挂载后交回实时排序。
+const renderedElement = getCurrentInstance()?.vnode.el;
+const hydratedLast = ref<boolean | undefined>(
+  typeof Element !== 'undefined' && renderedElement instanceof Element
+    ? renderedElement.classList.contains('ex-step--last')
+    : undefined
+);
+onMounted(() => {
+  hydratedLast.value = undefined;
+});
 
 // 组件卸载时注销
 onBeforeUnmount(() => {
-  stepsContext.unregisterStep(uid);
+  stepsContext?.unregisterStep(uid);
 });
 
 // 计算属性
 const stepNumber = computed(() => stepIndex.value + 1);
 
-const isCurrent = computed(() => stepIndex.value === stepsContext.current.value);
+const isCurrent = computed(() => stepIndex.value === stepsContext?.current.value);
 
-const isLastStep = computed(() => stepIndex.value === stepsContext.stepCount.value - 1);
+const isLastStep = computed(
+  () => hydratedLast.value ?? stepIndex.value === (stepsContext?.stepCount.value ?? 1) - 1
+);
 
 const currentStatus = computed(() => {
   // 优先使用步骤自己的状态
   if (props.status) return props.status;
+  if (!stepsContext) return 'wait';
 
   // 根据当前步骤索引判断状态
   if (stepIndex.value < stepsContext.current.value) {
@@ -145,7 +170,7 @@ const isClickable = computed(() => {
   // 优先使用步骤自己的clickable属性
   if (props.clickable !== undefined) return props.clickable;
   // 否则使用父组件的clickable属性
-  return stepsContext.clickable.value;
+  return stepsContext?.clickable.value ?? false;
 });
 
 const stepClasses = computed(() => {
@@ -233,12 +258,6 @@ const statusIcon = computed(() => {
       return 'check-line';
     case 'error':
       return 'close-line';
-    case 'process':
-      // 进行中状态显示加载图标（如果是点模式）或数字
-      return stepsContext.progressDot.value ? 'loader-4-line' : '';
-    case 'wait':
-      // 等待状态默认显示数字
-      return '';
     default:
       return '';
   }
@@ -247,7 +266,7 @@ const statusIcon = computed(() => {
 // 事件处理
 const handleClick = () => {
   if (!props.disabled && isClickable.value) {
-    stepsContext.onStepClick(stepIndex.value, props.clickable === true);
+    stepsContext?.onStepClick(stepIndex.value, props.clickable === true);
   }
 };
 

@@ -12,12 +12,16 @@ describe('页头内容与导航契约', () => {
         subtitle: '订单编号 001',
         showBack: true,
         backText: '返回订单',
-        breadcrumb: [{ id: 'home', title: '首页', path: '/' }, { title: '当前页' }],
+        breadcrumb: [
+          { id: 'home', title: '首页', path: '/' },
+          { title: '当前页', path: '/orders' },
+        ],
         avatar: { src: '/avatar.png', alt: '负责人' },
       },
     });
     await wrapper.get('.ex-page-header__back').trigger('click');
     await wrapper.get('.ex-page-header__breadcrumb-link').trigger('click');
+    await wrapper.get('[aria-current="page"]').trigger('click');
     expect(wrapper.emitted('back')).toHaveLength(1);
     expect(wrapper.emitted('breadcrumb-click')).toEqual([['/', 0]]);
     expect(wrapper.get('[aria-current="page"]').element.tagName).toBe('SPAN');

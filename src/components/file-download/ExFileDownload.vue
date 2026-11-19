@@ -6,6 +6,7 @@ import ExButton from '../button/ExButton.vue';
 import ExIcon from '../icon/ExIcon.vue';
 import { useLocale } from '../../locale';
 import { hasRenderableContent } from '../../utils/vnode';
+import { useRenderComputed } from '../../composables/useRenderComputed';
 import {
   calculateDownloadProgress,
   formatDownloadBytes,
@@ -433,8 +434,10 @@ const slotProps = computed<ExFileDownloadSlotProps>(() => ({
   progress: progress.value,
   disabled: isTriggerDisabled.value,
 }));
-const hasTriggerSlot = computed(() => hasRenderableContent(slots.default?.(slotProps.value)));
-const hasProgressSlot = computed(() =>
+const hasTriggerSlot = useRenderComputed(() =>
+  hasRenderableContent(slots.default?.(slotProps.value))
+);
+const hasProgressSlot = useRenderComputed(() =>
   hasRenderableContent(slots.progress?.({ progress: progress.value }))
 );
 

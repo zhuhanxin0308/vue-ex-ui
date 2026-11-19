@@ -8,6 +8,21 @@ const wrappers: Array<{ unmount(): void }> = [];
 afterEach(() => wrappers.splice(0).forEach(wrapper => wrapper.unmount()));
 
 describe('日历日期导航和网格语义', () => {
+  it('日视图跨年同时通知月份和年份，传入非法日期保留当前视图', async () => {
+    const wrapper = mount(ExCalendar, {
+      props: { modelValue: new Date(2024, 11, 31), mode: 'day', showSolarTerm: false },
+    });
+    wrappers.push(wrapper);
+    await wrapper.get('[aria-label="Next day"]').trigger('click');
+    expect(wrapper.emitted('year-change')).toEqual([[2025]]);
+    expect(wrapper.emitted('month-change')).toEqual([[2025, 1]]);
+    const before = wrapper.text();
+    (wrapper.vm as unknown as ExCalendarExposed).selectDate(new Date(NaN));
+    await wrapper.setProps({ modelValue: new Date(NaN) });
+    expect(wrapper.text()).toBe(before);
+    expect(wrapper.emitted('update:modelValue')).toBeUndefined();
+  });
+
   it('公开翻月和翻年后保留唯一可用键盘入口，动态禁用会迁移入口', async () => {
     const wrapper = mount(ExCalendar, {
       props: { modelValue: new Date(2024, 0, 15), showSolarTerm: false },

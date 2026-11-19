@@ -27,6 +27,7 @@ const iconDefinitions = {
   'close-line': s('<path d="M6 6l12 12M18 6L6 18"/>'),
   'close-circle-line': s('<circle cx="12" cy="12" r="9"/><path d="M9 9l6 6M15 9l-6 6"/>'),
   'check-line': s('<path d="M5 12l5 5L20 7"/>'),
+  'edit-line': s('<path d="M16 3l5 5L8 21H3v-5zM13 6l5 5"/>'),
   'checkbox-circle-line': s('<circle cx="12" cy="12" r="9"/><path d="M8 12.5l2.5 2.5L16 9.5"/>'),
   'check-circle-line': s('<circle cx="12" cy="12" r="9"/><path d="M8 12.5l2.5 2.5L16 9.5"/>'),
   'checkbox-circle-fill':
@@ -199,6 +200,9 @@ const iconDefinitions = {
   ),
   'sword-line': s('<path d="M14.5 3.5L21 3l-.5 6.5-9 9-3-3z"/><path d="M3 21l4-4M8.5 12.5l3 3"/>'),
   'shield-line': s('<path d="M12 3l8 3v6c0 5-3.5 8-8 9-4.5-1-8-4-8-9V6z"/>'),
+  'shield-check-line': s(
+    '<path d="M12 3l8 3v6c0 5-3.5 8-8 9-4.5-1-8-4-8-9V6z"/><path d="M8 12l3 3 5-5"/>'
+  ),
   'shield-fill': f('<path d="M12 3l8 3v6c0 5-3.5 8-8 9-4.5-1-8-4-8-9V6z"/>'),
   'magic-line': s(
     '<path d="M4 20L15 9M18 3l.7 1.8L20.5 5.5 18.7 6.2 18 8l-.7-1.8L15.5 5.5l1.8-.7zM7 11l.5 1.3 1.3.5-1.3.5L7 15l-.5-1.3L5.2 13.2l1.3-.5z"/>'

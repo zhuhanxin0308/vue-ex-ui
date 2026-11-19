@@ -27,7 +27,9 @@
           :index="index"
         ></slot>
       </span>
-      <span class="ex-breadcrumb-item__text">{{ item.label }}</span>
+      <span class="ex-breadcrumb-item__text">
+        <slot>{{ item.label }}</slot>
+      </span>
     </a>
 
     <span
@@ -45,7 +47,9 @@
           :index="index"
         ></slot>
       </span>
-      <span class="ex-breadcrumb-item__text">{{ item.label }}</span>
+      <span class="ex-breadcrumb-item__text">
+        <slot>{{ item.label }}</slot>
+      </span>
     </span>
 
     <!-- 分隔符 -->
@@ -74,6 +78,7 @@ defineOptions({
 });
 
 const props = withDefaults(defineProps<BreadcrumbItemProps>(), {
+  item: () => ({ label: '' }),
   index: 0,
   isLast: false,
   separator: '/',
@@ -96,9 +101,9 @@ const isClickable = computed(() => {
 });
 
 // 处理点击
-const handleClick = () => {
+const handleClick = (event: MouseEvent) => {
   if (isClickable.value) {
-    emit('click', props.item);
+    emit('click', props.item, event);
   }
 };
 </script>

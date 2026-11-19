@@ -231,21 +231,24 @@ describe('ExTabs', () => {
   });
 
   it('关闭激活项时应该跳过禁用的相邻标签', async () => {
+    const visible = ref(true);
     const wrapper = mount(ExTabs, {
       props: { modelValue: 'tab1', closable: true },
       slots: {
-        default: `
-          <ExTabPane name="tab1" label="Tab 1">One</ExTabPane>
-          <ExTabPane name="tab2" label="Tab 2" disabled>Two</ExTabPane>
-          <ExTabPane name="tab3" label="Tab 3">Three</ExTabPane>
-        `,
+        default: () => [
+          visible.value && h(ExTabPane, { name: 'tab1', label: 'Tab 1' }),
+          h(ExTabPane, { name: 'tab2', label: 'Tab 2', disabled: true }),
+          h(ExTabPane, { name: 'tab3', label: 'Tab 3' }),
+        ],
       },
       global: { components: { ExTabPane } },
     });
     await nextTick();
 
     await wrapper.find('.ex-tabs__tab-close').trigger('click');
-
+    expect(wrapper.emitted('update:modelValue')).toBeUndefined();
+    visible.value = false;
+    await nextTick();
     expect(wrapper.emitted('update:modelValue')?.at(-1)).toEqual(['tab3']);
   });
 

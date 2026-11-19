@@ -10,6 +10,7 @@
 
 import type { Grammar, GrammarRule } from './engine';
 import { JS_BUILTINS, JS_KEYWORDS } from './javascript-words';
+import { rustRawString } from './rust-string';
 
 /** 把关键字数组编译为 `\b(?:a|b|c)\b` 形式的正则。 */
 function words(list: string[]): RegExp {
@@ -910,7 +911,7 @@ const rust = (): Grammar =>
     ],
     builtins: ['println', 'print', 'format', 'vec', 'panic', 'assert', 'Some', 'None', 'Ok', 'Err'],
     preprocessor: /#!?\[[^\]]*\]/,
-    extraStrings: [{ type: 'string', re: /r#*"[\s\S]*?"#*/ }],
+    extraStrings: [rustRawString],
   });
 
 // ---------------------------------------------------------------------------

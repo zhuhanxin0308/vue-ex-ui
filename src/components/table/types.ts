@@ -232,6 +232,8 @@ export interface ExTableProps extends TableEditingProps, TableColumnInteractionP
   bordered?: boolean;
   /** 是否显示斑马纹 */
   striped?: boolean;
+  /** 自定义行类名。回调的索引按当前展示顺序计算。 */
+  rowClassName?: string | ((record: TableDataItem, index: number) => string);
   /** 是否可悬停 */
   hoverable?: boolean;
   /** 是否加载中 */

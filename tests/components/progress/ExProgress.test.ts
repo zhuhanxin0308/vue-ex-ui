@@ -1,13 +1,43 @@
 import { afterEach, describe, it, expect, vi } from 'vitest';
 import { mount } from '@vue/test-utils';
-import { nextTick } from 'vue';
+import { h, nextTick, ref } from 'vue';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { compileString } from 'sass-embedded';
 import ExProgress from '../../../src/components/progress/ExProgress.vue';
+import ExConfigProvider from '../../../src/components/config-provider/ExConfigProvider.vue';
 import type { ExProgressExposed, ProgressStatus } from '../../../src/components/progress/types';
 
 describe('ExProgress', () => {
+  it('实例和全局动画开关共同控制唯一的波浪帧，卸载取消最后一帧', async () => {
+    let frameId = 0;
+    const request = vi.spyOn(window, 'requestAnimationFrame').mockImplementation(() => ++frameId);
+    const cancel = vi.spyOn(window, 'cancelAnimationFrame').mockImplementation(() => {});
+    const waveAnimated = ref(false);
+    const wrapper = mount(ExConfigProvider, {
+      props: { animation: true },
+      slots: {
+        default: () =>
+          h(ExProgress, { percentage: 50, type: 'wave', waveAnimated: waveAnimated.value }),
+      },
+    });
+    expect(request).not.toHaveBeenCalled();
+    waveAnimated.value = true;
+    await nextTick();
+    expect(request).toHaveBeenCalledTimes(1);
+    await wrapper.setProps({ animation: false });
+    expect(cancel).toHaveBeenCalledWith(1);
+    waveAnimated.value = false;
+    await nextTick();
+    await wrapper.setProps({ animation: true });
+    expect(request).toHaveBeenCalledTimes(1);
+    waveAnimated.value = true;
+    await nextTick();
+    expect(request).toHaveBeenCalledTimes(2);
+    wrapper.unmount();
+    expect(cancel).toHaveBeenCalledWith(2);
+  });
+
   afterEach(() => {
     vi.unstubAllGlobals();
     vi.restoreAllMocks();

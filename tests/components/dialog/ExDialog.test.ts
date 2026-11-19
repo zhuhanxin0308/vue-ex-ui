@@ -114,6 +114,7 @@ describe('ExDialog', () => {
     vm.open();
     expect(wrapper.emitted('update:modelValue')?.at(-1)).toEqual([true]);
 
+    await wrapper.setProps({ modelValue: true });
     await vm.close();
     expect(wrapper.emitted('update:modelValue')?.at(-1)).toEqual([false]);
     wrapper.unmount();

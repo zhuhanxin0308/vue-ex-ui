@@ -130,6 +130,10 @@
     box-shadow: 0 0 0 2px var(--ex-color-primary-alpha-20);
   }
 
+  &.is-readonly &__trigger {
+    cursor: default;
+  }
+
   &.is-disabled {
     .ex-time-picker__trigger {
       cursor: not-allowed;

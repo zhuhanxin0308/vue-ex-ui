@@ -10,6 +10,7 @@
     @mouseleave="handleMouseLeave"
     @focusin="handleFocusIn"
     @focusout="handleFocusOut"
+    @keydown.self="handleKeydown"
   >
     <!-- 轮播容器 -->
     <div class="ex-carousel__container">
@@ -97,6 +98,7 @@ import type { ExCarouselProps, ExCarouselEmits, ExCarouselExposed } from './type
 import { useI18n } from '../../locale';
 import { carouselContextKey } from './context';
 import { useSlotItems } from '../../composables/useSlotItems';
+import { isComposingKeyboardEvent } from '../../utils/keyboard';
 import { useControllableState } from '../../composables/useControllableState';
 
 defineOptions({
@@ -269,17 +271,7 @@ const carouselStyles = computed(() => {
     styles.height = typeof height.value === 'number' ? `${height.value}px` : height.value;
   }
 
-  if (props.style) {
-    if (typeof props.style === 'string') {
-      return `${Object.entries(styles)
-        .map(([k, v]) => `${k}: ${v}`)
-        .join('; ')}; ${props.style}`;
-    } else {
-      Object.assign(styles, props.style);
-    }
-  }
-
-  return styles;
+  return [styles, props.style];
 });
 
 const trackStyles = computed(() => {
@@ -350,6 +342,17 @@ const prev = () => {
   }
 
   goTo(prevIndex);
+};
+
+const handleKeydown = (event: KeyboardEvent) => {
+  if (event.defaultPrevented || isComposingKeyboardEvent(event)) return;
+  const horizontal = direction.value === 'horizontal';
+  if (event.key === (horizontal ? 'ArrowLeft' : 'ArrowUp')) prev();
+  else if (event.key === (horizontal ? 'ArrowRight' : 'ArrowDown')) next();
+  else if (event.key === 'Home') goTo(0);
+  else if (event.key === 'End') goTo(itemCount.value - 1);
+  else return;
+  event.preventDefault();
 };
 
 const startAutoplay = () => {

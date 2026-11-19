@@ -1,3 +1,4 @@
+import type { StyleValue } from 'vue';
 import type { ComponentSize } from '../config-provider/types';
 
 /**
@@ -133,7 +134,7 @@ export interface ExSkeletonProps {
   /** 自定义CSS类名 */
   class?: string | string[] | Record<string, boolean>;
   /** 自定义样式 */
-  style?: string | Record<string, string | number>;
+  style?: StyleValue;
 }
 
 /**

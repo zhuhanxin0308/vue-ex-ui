@@ -169,6 +169,7 @@ import {
 } from 'vue';
 import ExDropdown from '../dropdown/ExDropdown.vue';
 import { hasRenderableContent } from '../../utils/vnode';
+import { useRenderComputed } from '../../composables/useRenderComputed';
 import { MENU_INJECTION_KEY, MENU_BRANCH_VISIBLE_KEY } from './context';
 import { registerOverlayEscapeBoundary } from '../../composables/overlay-manager';
 import { isComposingKeyboardEvent } from '../../utils/keyboard';
@@ -189,10 +190,8 @@ const props = withDefaults(defineProps<ExSubMenuProps>(), {
 const emit = defineEmits<ExSubMenuEmits>();
 const attrs = useAttrs();
 const menuContext = inject(MENU_INJECTION_KEY, null);
-const ancestorVisible = inject(
-  MENU_BRANCH_VISIBLE_KEY,
-  computed(() => true)
-);
+const parentBranch = inject(MENU_BRANCH_VISIBLE_KEY, null);
+const ancestorVisible = computed(() => parentBranch?.value ?? true);
 const subMenuRef = ref<HTMLLIElement | null>(null);
 const titleButtonRef = ref<HTMLButtonElement | null>(null);
 const submenuListRef = ref<HTMLUListElement | null>(null);
@@ -200,7 +199,7 @@ const internalOpen = ref(false);
 const pendingFocus = ref<'first' | 'last' | null>(null);
 const submenuId = `ex-submenu-${useId().replace(/[^a-zA-Z0-9_-]/g, '')}`;
 
-const isHorizontal = computed(() => menuContext?.mode.value === 'horizontal');
+const isHorizontal = computed(() => !parentBranch && menuContext?.mode.value === 'horizontal');
 const isOpen = computed(() =>
   menuContext ? menuContext.openKeys.value.includes(props.itemKey) : internalOpen.value
 );
@@ -208,7 +207,7 @@ provide(
   MENU_BRANCH_VISIBLE_KEY,
   computed(() => ancestorVisible.value && isOpen.value && !menuContext?.collapsed.value)
 );
-const hasIcon = computed(() => hasRenderableContent(slots.icon?.()));
+const hasIcon = useRenderComputed(() => hasRenderableContent(slots.icon?.()));
 const tabIndex = computed(() =>
   menuContext ? menuContext.getTabIndex(props.itemKey, disabled.value) : disabled.value ? -1 : 0
 );
@@ -330,6 +329,14 @@ const closeAndRestoreFocus = (): void => {
 
 const handleTitleKeydown = (event: KeyboardEvent): void => {
   if (props.disabled || event.defaultPrevented || isComposingKeyboardEvent(event)) return;
+
+  if (isHorizontal.value && (event.key === 'Enter' || event.key === ' ')) {
+    // 取消按钮的合成点击，Dropdown 同样会尊重 defaultPrevented。
+    event.preventDefault();
+    if (isOpen.value) closeAndRestoreFocus();
+    else openAndFocus('first');
+    return;
+  }
 
   if (event.key === 'Home' || event.key === 'End') {
     if (moveTitleFocus(event.key === 'Home' ? 'first' : 'last')) event.preventDefault();

@@ -241,6 +241,7 @@ import { useI18n } from '../../locale';
 import { generateId } from '../../utils/id';
 import { isComposingKeyboardEvent } from '../../utils/keyboard';
 import { hasRenderableContent } from '../../utils/vnode';
+import { useRenderComputed } from '../../composables/useRenderComputed';
 import {
   calculateTextareaHeight,
   mergeAriaTokens,
@@ -325,13 +326,13 @@ const normalizedMaxlength = computed(() => normalizeNonNegativeInteger(props.max
 const normalizedRows = computed(() => normalizePositiveInteger(props.rows, 3));
 const currentLength = computed(() => rawValue.value.length);
 
-const hasLabelSlot = computed(() => hasRenderableContent(slots.label?.({})));
-const hasPrefix = computed(() => hasRenderableContent(slots.prefix?.({})));
-const hasSuffixSlot = computed(() => hasRenderableContent(slots.suffix?.({})));
-const hasPrependSlot = computed(() => hasRenderableContent(slots.prepend?.({})));
-const hasAppendSlot = computed(() => hasRenderableContent(slots.append?.({})));
-const hasHelpSlot = computed(() => hasRenderableContent(slots.help?.({})));
-const hasErrorSlot = computed(() => hasRenderableContent(slots.error?.({})));
+const hasLabelSlot = useRenderComputed(() => hasRenderableContent(slots.label?.({})));
+const hasPrefix = useRenderComputed(() => hasRenderableContent(slots.prefix?.({})));
+const hasSuffixSlot = useRenderComputed(() => hasRenderableContent(slots.suffix?.({})));
+const hasPrependSlot = useRenderComputed(() => hasRenderableContent(slots.prepend?.({})));
+const hasAppendSlot = useRenderComputed(() => hasRenderableContent(slots.append?.({})));
+const hasHelpSlot = useRenderComputed(() => hasRenderableContent(slots.help?.({})));
+const hasErrorSlot = useRenderComputed(() => hasRenderableContent(slots.error?.({})));
 
 const hasLabel = computed(() => Boolean(props.label) || hasLabelSlot.value);
 const shouldShowPrompt = computed(
@@ -382,7 +383,9 @@ const showErrorMessage = computed(
   () =>
     actualStatus.value === 'error' && (actualErrorMessage.value.length > 0 || hasErrorSlot.value)
 );
-const showSuccessMessage = computed(() => actualStatus.value === 'success');
+const showSuccessMessage = computed(
+  () => actualStatus.value === 'success' && props.status === 'success'
+);
 const showHelpMessage = computed(() => Boolean(props.helpText) || hasHelpSlot.value);
 const showMessage = computed(
   () => showErrorMessage.value || showSuccessMessage.value || showHelpMessage.value
@@ -580,8 +583,16 @@ function discardNativeDraft(): void {
   if (inputRef.value) inputRef.value.value = displayValue.value;
 }
 
-function synchronizeConfirmedValue(): void {
-  if (props.modelValue === undefined) return;
+function hasEquivalentDraft(): boolean {
+  return (
+    isFocused.value &&
+    Boolean(props.modelModifiers?.trim || props.modelModifiers?.number) &&
+    Object.is(normalizeModelOutput(rawValue.value), props.modelValue)
+  );
+}
+
+function synchronizeConfirmedValue(finishEditing = false): void {
+  if (props.modelValue === undefined || (!finishEditing && hasEquivalentDraft())) return;
   const confirmed = normalizeInputValue(props.modelValue);
   if (rawValue.value !== confirmed) {
     rawValue.value = confirmed;
@@ -674,8 +685,9 @@ const handleChange = (event: Event): void => {
   const modelValue = normalizeModelOutput(rawValue.value);
   if (props.modelModifiers?.lazy) {
     emit('update:modelValue', modelValue);
-    void nextTick(synchronizeConfirmedValue);
   }
+  if (props.modelModifiers?.lazy || props.modelModifiers?.trim || props.modelModifiers?.number)
+    void nextTick(() => synchronizeConfirmedValue(true));
   emit('change', modelValue, event);
   if (shouldValidate('change')) validateInput(rawValue.value);
   formItem?.onFieldChange();
@@ -688,6 +700,8 @@ const handleFocus = (event: FocusEvent): void => {
 
 const handleBlur = (event: FocusEvent): void => {
   isFocused.value = false;
+  if (!props.modelModifiers?.lazy && (props.modelModifiers?.trim || props.modelModifiers?.number))
+    synchronizeConfirmedValue();
   emit('blur', event);
   if (shouldValidate('blur')) validateInput(rawValue.value);
   formItem?.onFieldBlur();
@@ -834,6 +848,8 @@ const startResizeTracking = (): void => {
 
 watch([() => props.modelValue, () => props.formatter], ([modelValue], [previousModelValue]) => {
   if (!Object.is(modelValue, previousModelValue)) {
+    // 数字末尾的小数点和词间空格仍属于当前编辑，只有父级改写真实值时才替换。
+    if (hasEquivalentDraft()) return;
     const value = normalizeInputValue(modelValue);
     if (value !== rawValue.value) validationError.value = null;
     rawValue.value = value;

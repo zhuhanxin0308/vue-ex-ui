@@ -13,6 +13,14 @@
   gap: var(--ex-spacing-2);
   font-family: var(--ex-font-secondary);
 
+  @each $status in success, warning, error {
+    &.is-#{$status} &__stars {
+      outline: 1px solid var(--ex-color-#{$status});
+      outline-offset: var(--ex-spacing-1);
+      border-radius: var(--ex-radius-base);
+    }
+  }
+
   // ============================================================================
   // 星星容器
   // ============================================================================

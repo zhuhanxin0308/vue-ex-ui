@@ -51,16 +51,7 @@
 </template>
 
 <script setup lang="ts">
-import {
-  computed,
-  ref,
-  watch,
-  nextTick,
-  onMounted,
-  onUpdated,
-  onUnmounted,
-  getCurrentInstance,
-} from 'vue';
+import { computed, ref, watch, nextTick, onMounted, onUpdated, onUnmounted } from 'vue';
 import type { ExTooltipProps, ExTooltipEmits, ExTooltipExposed } from './types';
 import { calcPopperArrowStyle, calcPopperPosition } from '../../utils/popper';
 import { generateId } from '../../utils/id';
@@ -78,6 +69,7 @@ defineOptions({
 });
 
 const props = withDefaults(defineProps<ExTooltipProps>(), {
+  modelValue: undefined,
   placement: 'top',
   trigger: 'hover',
   effect: 'dark',
@@ -90,15 +82,7 @@ const props = withDefaults(defineProps<ExTooltipProps>(), {
 });
 
 const emit = defineEmits<ExTooltipEmits>();
-const instance = getCurrentInstance();
-const isModelControlled = () => {
-  const vnodeProps = instance?.vnode.props;
-  return Boolean(
-    vnodeProps &&
-    (Object.prototype.hasOwnProperty.call(vnodeProps, 'modelValue') ||
-      Object.prototype.hasOwnProperty.call(vnodeProps, 'model-value'))
-  );
-};
+const isModelControlled = () => props.modelValue !== undefined;
 
 const tooltipRef = ref<HTMLDivElement>();
 const popperRef = ref<HTMLDivElement>();
@@ -112,7 +96,11 @@ const configTheme = useConfigTheme();
 const neonEffect = useNeonEffect();
 const animation = useAnimation();
 const tooltipZIndex = useZIndexLayer('tooltip');
-const { styles: tooltipStyles, active: overlayActive } = usePopupOverlay({
+const {
+  styles: tooltipStyles,
+  active: overlayActive,
+  containsTarget: containsPopupTarget,
+} = usePopupOverlay({
   active: () => visible.value,
   container: popperRef,
   zIndex: () => props.zIndex ?? tooltipZIndex.value,
@@ -147,11 +135,11 @@ const arrowStyle = ref<Record<string, string>>({});
 
 // 方法
 const clearTimers = () => {
-  if (openTimer.value) {
+  if (openTimer.value !== undefined) {
     clearTimeout(openTimer.value);
     openTimer.value = undefined;
   }
-  if (closeTimer.value) {
+  if (closeTimer.value !== undefined) {
     clearTimeout(closeTimer.value);
     closeTimer.value = undefined;
   }
@@ -209,6 +197,7 @@ const show = () => {
   clearTimers();
 
   const requestShow = () => {
+    openTimer.value = undefined;
     if (!props.disabled) requestVisible(true);
   };
   if (props.openDelay > 0 && typeof window !== 'undefined') {
@@ -220,8 +209,12 @@ const show = () => {
 
 const hide = () => {
   clearTimers();
+  if (!visible.value) return;
 
-  const requestHide = () => requestVisible(false);
+  const requestHide = () => {
+    closeTimer.value = undefined;
+    requestVisible(false);
+  };
   if (props.closeDelay > 0 && typeof window !== 'undefined') {
     closeTimer.value = window.setTimeout(requestHide, props.closeDelay);
   } else {
@@ -283,14 +276,20 @@ const handleBlur = (event: FocusEvent) => {
   hideWhenInactive(false);
 };
 
-const handleClick = () => {
+const handleClick = (event: MouseEvent) => {
+  if (containsPopupTarget(event.target as Node | null)) return;
   if (props.trigger === 'click') {
-    if (visible.value) {
+    if (visible.value || openTimer.value !== undefined) {
       hide();
     } else {
       show();
     }
   }
+};
+
+const handleClickOutside = (event: MouseEvent) => {
+  const target = event.target as Node | null;
+  if (!tooltipRef.value?.contains(target) && !containsPopupTarget(target)) hide();
 };
 
 // 鼠标移入浮层时取消关闭计时，允许用户在浮层内交互/选中文本
@@ -344,23 +343,31 @@ const syncTriggerDescriptions = () => {
   trigger.setAttribute('aria-describedby', Array.from(ids).join(' '));
 };
 
-// 仅在浮层可见时挂载全局监听器
+const removeGlobalListeners = () => {
+  if (typeof window === 'undefined' || typeof document === 'undefined') return;
+  window.removeEventListener('resize', handleResize);
+  window.removeEventListener('scroll', handleScroll, true);
+  document.removeEventListener('click', handleClickOutside);
+};
+
+// 待打开期间也监听外部点击，避免离开触发器后旧意图延迟弹出。
 watch(
-  overlayActive,
-  isVisible => {
+  [overlayActive, () => props.trigger, openTimer],
+  ([isVisible, , pendingOpen]) => {
     nextTick(syncTriggerDescriptions);
+    removeGlobalListeners();
     if (typeof window === 'undefined' || typeof document === 'undefined') return;
     if (isVisible) {
       nextTick(updatePosition);
       window.addEventListener('resize', handleResize);
       window.addEventListener('scroll', handleScroll, true);
     } else {
-      window.removeEventListener('resize', handleResize);
-      window.removeEventListener('scroll', handleScroll, true);
       restoreTriggerDescriptions();
     }
+    if (props.trigger === 'click' && (isVisible || pendingOpen !== undefined))
+      document.addEventListener('click', handleClickOutside);
   },
-  { immediate: true }
+  { immediate: true, flush: 'sync' }
 );
 
 onMounted(() => {
@@ -371,8 +378,7 @@ onUpdated(syncTriggerDescriptions);
 
 onUnmounted(() => {
   clearTimers();
-  window.removeEventListener('resize', handleResize);
-  window.removeEventListener('scroll', handleScroll, true);
+  removeGlobalListeners();
   restoreTriggerDescriptions();
 });
 

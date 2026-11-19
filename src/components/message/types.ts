@@ -30,6 +30,8 @@ export interface ExMessageSlots {
 
 export interface ExMessageExposed {
   close: () => boolean;
+  /** 按新的时长重新计时，同时保留悬停与焦点暂停状态。 */
+  resetTimer: (duration?: number) => void;
   isVisible: () => boolean;
   getElement: () => HTMLElement | null;
 }

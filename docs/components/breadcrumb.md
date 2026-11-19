@@ -521,16 +521,26 @@ const items1 = [
 
 ### Breadcrumb Events
 
-| 事件名 | 说明               | 回调参数                                |
-| ------ | ------------------ | --------------------------------------- |
-| click  | 点击面包屑项时触发 | `(item: BreadcrumbItem, index: number)` |
+| 事件名 | 说明               | 回调参数                                                   |
+| ------ | ------------------ | ---------------------------------------------------------- |
+| click  | 点击面包屑项时触发 | `(item: BreadcrumbItem, index: number, event: MouseEvent)` |
+
+使用客户端路由时，可以在 `click` 回调中调用 `event.preventDefault()` 并交给路由器导航。折叠时，`index` 仍对应原始项目顺序。
 
 ### Breadcrumb Slots
 
-| 插槽名    | 说明         | 参数                                      |
-| --------- | ------------ | ----------------------------------------- |
-| icon      | 自定义图标   | `{ item: BreadcrumbItem, index: number }` |
-| separator | 自定义分隔符 | -                                         |
+| 插槽名    | 说明                             | 参数                                      |
+| --------- | -------------------------------- | ----------------------------------------- |
+| default   | 使用 `ExBreadcrumbItem` 声明子项 | -                                         |
+| icon      | 自定义图标                       | `{ item: BreadcrumbItem, index: number }` |
+| separator | 自定义分隔符                     | -                                         |
+
+```vue
+<ExBreadcrumb separator="›">
+  <ExBreadcrumbItem :item="{ label: '订单', path: '/orders' }" />
+  <ExBreadcrumbItem>订单详情</ExBreadcrumbItem>
+</ExBreadcrumb>
+```
 
 ## 特性
 

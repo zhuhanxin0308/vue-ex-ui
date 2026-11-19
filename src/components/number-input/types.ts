@@ -14,6 +14,8 @@ export type NumberInputControlsPosition = 'right' | 'both';
 export interface ExNumberInputProps {
   /** 绑定值 */
   modelValue?: number | null;
+  /** 非受控模式的初始值与表单重置值。 */
+  defaultValue?: number | null;
   /** 最小值 */
   min?: number;
   /** 最大值 */

@@ -3,6 +3,23 @@ import { mount } from '@vue/test-utils';
 import ExSkeleton from '../../../src/components/skeleton/ExSkeleton.vue';
 
 describe('骨架内容布局与加载切换', () => {
+  it('默认单行与显式段落、标题互斥，外部嵌套数组按顺序覆盖样式', async () => {
+    const wrapper = mount(ExSkeleton, {
+      props: { width: 100, style: [{ minHeight: '60px' }, ['width: 70px']] },
+    });
+    const root = wrapper.get<HTMLElement>('.ex-skeleton').element;
+    expect(root.style.width).toBe('70px');
+    expect(root.style.minHeight).toBe('60px');
+    expect(wrapper.find('.ex-skeleton__element--text').exists()).toBe(true);
+    await wrapper.setProps({ rows: 2 });
+    expect(wrapper.findAll('.ex-skeleton__row')).toHaveLength(2);
+    expect(wrapper.find('.ex-skeleton__element--text').exists()).toBe(false);
+    await wrapper.setProps({ title: true, rows: 0 });
+    expect(wrapper.find('.ex-skeleton__title').exists()).toBe(true);
+    expect(wrapper.find('.ex-skeleton__element--text').exists()).toBe(false);
+    wrapper.unmount();
+  });
+
   it.each(['article', 'card', 'list'] as const)(
     '%s 的头像标题段落遵守自定义尺寸',
     async variant => {

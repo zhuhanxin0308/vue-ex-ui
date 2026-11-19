@@ -8,11 +8,14 @@ import { resolveZIndexLayer } from './z-index';
 import { getTheme } from '../../composables/useTheme';
 import { resolveThemeOverrides } from './theme-overrides';
 
+/** 视觉配置只读取注入上下文，避免初始化翻译器或保留完整语言包。 */
+const useRawConfigContext = () => inject(CONFIG_PROVIDER_INJECTION_KEY, null);
+
 /** 获取最近一层配置；未使用提供者时返回稳定的只读默认值。 */
 export function useConfig(): ConfigContext {
   const composer = useI18n();
   return (
-    inject(CONFIG_PROVIDER_INJECTION_KEY, null) ?? {
+    useRawConfigContext() ?? {
       theme: computed(getTheme),
       themeOverrides: computed(() => DEFAULT_CONFIG.themeOverrides),
       locale: computed(() => composer.locale.value as SupportedLocale),
@@ -29,14 +32,14 @@ export function useGlobalConfig(): ConfigContext {
 }
 
 export function useConfigTheme(): ComputedRef<Theme> {
-  const config = useConfig();
-  return computed(() => unref(config.theme));
+  const config = useRawConfigContext();
+  return computed(() => (config ? unref(config.theme) : getTheme()));
 }
 
 /** 浮层使用相同品牌变量；返回只读派生值，避免子组件改写父级配置。 */
 export function useThemeOverrides(): ComputedRef<Record<string, string>> {
-  const config = useConfig();
-  return computed(() => resolveThemeOverrides(config.themeOverrides?.value));
+  const config = useRawConfigContext();
+  return computed(() => resolveThemeOverrides(config?.themeOverrides?.value));
 }
 
 export function useLocale(): ComputedRef<SupportedLocale> {
@@ -46,7 +49,7 @@ export function useLocale(): ComputedRef<SupportedLocale> {
 
 export function useGlobalSize(): ComputedRef<ComponentSize> {
   // 只读取尺寸所需上下文，基础组件无需因此加载语言包或初始化翻译器。
-  const config = inject(CONFIG_PROVIDER_INJECTION_KEY, null);
+  const config = useRawConfigContext();
   return computed(() => (config ? unref(config.size) : DEFAULT_CONFIG.size));
 }
 
@@ -58,22 +61,24 @@ export function useComponentSize(
 }
 
 export function useNeonEffect(): ComputedRef<boolean> {
-  const config = inject(CONFIG_PROVIDER_INJECTION_KEY, null);
+  const config = useRawConfigContext();
   return computed(() => (config ? unref(config.neonEffect) : DEFAULT_CONFIG.neonEffect));
 }
 
 export function useAnimation(): ComputedRef<boolean> {
-  const config = inject(CONFIG_PROVIDER_INJECTION_KEY, null);
+  const config = useRawConfigContext();
   return computed(() => (config ? unref(config.animation) : DEFAULT_CONFIG.animation));
 }
 
 export function useZIndex(offset = 0): ComputedRef<number> {
-  const config = useConfig();
-  return computed(() => unref(config.zIndex) + offset);
+  const config = useRawConfigContext();
+  return computed(() => (config ? unref(config.zIndex) : DEFAULT_CONFIG.zIndex) + offset);
 }
 
 /** 按统一语义层级解析最近 ConfigProvider 的最终 z-index。 */
 export function useZIndexLayer(layer: ZIndexLayer): ComputedRef<number> {
-  const config = useConfig();
-  return computed(() => resolveZIndexLayer(unref(config.zIndex), layer));
+  const config = useRawConfigContext();
+  return computed(() =>
+    resolveZIndexLayer(config ? unref(config.zIndex) : DEFAULT_CONFIG.zIndex, layer)
+  );
 }

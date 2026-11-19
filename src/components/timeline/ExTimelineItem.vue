@@ -22,7 +22,7 @@
         class="ex-timeline-item__content ex-timeline-item__content--left"
       >
         <div
-          v-if="timestamp && timestampPosition === 'top'"
+          v-if="hasTimestamp && timestampPosition === 'top'"
           class="ex-timeline-item__timestamp ex-timeline-item__timestamp--top"
         >
           <slot name="timestamp">
@@ -33,7 +33,7 @@
           <slot></slot>
         </div>
         <div
-          v-if="timestamp && timestampPosition === 'bottom'"
+          v-if="hasTimestamp && timestampPosition === 'bottom'"
           class="ex-timeline-item__timestamp ex-timeline-item__timestamp--bottom"
         >
           <slot name="timestamp">
@@ -67,23 +67,18 @@
         class="ex-timeline-item__content ex-timeline-item__content--right"
       >
         <div
-          v-if="timestamp && timestampPosition === 'top' && (mode !== 'alternate' || !isRightSide)"
+          v-if="hasTimestamp && timestampPosition === 'top'"
           class="ex-timeline-item__timestamp ex-timeline-item__timestamp--top"
         >
           <slot name="timestamp">
             {{ timestamp }}
           </slot>
         </div>
-        <div
-          v-if="mode !== 'alternate' || !isRightSide"
-          class="ex-timeline-item__card"
-        >
+        <div class="ex-timeline-item__card">
           <slot></slot>
         </div>
         <div
-          v-if="
-            timestamp && timestampPosition === 'bottom' && (mode !== 'alternate' || !isRightSide)
-          "
+          v-if="hasTimestamp && timestampPosition === 'bottom'"
           class="ex-timeline-item__timestamp ex-timeline-item__timestamp--bottom"
         >
           <slot name="timestamp">
@@ -117,7 +112,7 @@
         <!-- 内容区 -->
         <div class="ex-timeline-item__content ex-timeline-item__content--horizontal">
           <div
-            v-if="timestamp"
+            v-if="hasTimestamp"
             class="ex-timeline-item__timestamp ex-timeline-item__timestamp--horizontal"
           >
             <slot name="timestamp">
@@ -136,7 +131,9 @@
 <script setup lang="ts">
 import { normalizeCustomClass } from '../../composables/useCustomClass';
 import { useI18n } from '../../locale';
-import { computed, inject, ref, onMounted, onUpdated } from 'vue';
+import { computed, inject, ref, onBeforeUnmount, useSlots } from 'vue';
+import { useRenderComputed } from '../../composables/useRenderComputed';
+import { hasRenderableContent } from '../../utils/vnode';
 import { useComponentSize } from '../config-provider/composables';
 import type { ExTimelineItemProps, ExTimelineItemEmits, ExTimelineItemExposed } from './types';
 import { timelineContextKey } from './context';
@@ -158,10 +155,17 @@ const { t } = useI18n();
 const componentSize = useComponentSize(computed(() => props.size));
 
 const itemRef = ref<HTMLDivElement>();
-const itemIndex = ref(0);
+const slots = useSlots();
+const hasTimestamp = useRenderComputed(
+  () => Boolean(props.timestamp) || hasRenderableContent(slots.timestamp?.())
+);
 
 // 注入父组件提供的上下文
 const timeline = inject(timelineContextKey, null);
+const uid = Symbol('ex-timeline-item');
+timeline?.register({ uid, getElement: () => itemRef.value ?? null });
+onBeforeUnmount(() => timeline?.unregister(uid));
+const itemIndex = computed(() => timeline?.indexOf(uid) ?? 0);
 const direction = computed(() => timeline?.direction.value ?? 'vertical');
 const mode = computed(() => timeline?.mode.value ?? 'left');
 const showLine = computed(() => timeline?.showLine.value ?? true);
@@ -227,22 +231,8 @@ const nodeStyle = computed(() => {
 
 // 事件处理
 const handleClick = (event: MouseEvent) => {
-  emit('click', event);
+  if (props.clickable) emit('click', event);
 };
-
-// 计算当前项在兄弟节点中的索引（onUpdated 时重算，保证动态增删/重排后 alternate 左右不错位）
-const updateItemIndex = () => {
-  const el = itemRef.value;
-  if (el && el.parentElement) {
-    const idx = Array.from(el.parentElement.children).indexOf(el);
-    if (idx !== itemIndex.value) {
-      itemIndex.value = idx;
-    }
-  }
-};
-
-onMounted(updateItemIndex);
-onUpdated(updateItemIndex);
 
 // 暴露的方法
 const getElement = () => itemRef.value || null;

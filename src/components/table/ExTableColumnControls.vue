@@ -20,11 +20,13 @@
       <button
         type="button"
         class="ex-table-column-controls__drag"
+        :data-drop-position="dropPosition"
         :draggable="!disabled"
         :disabled="disabled"
         :aria-label="t('reorderColumn', { column: title })"
         @dragstart="dragStart"
-        @dragend="columnDrag?.clear()"
+        @dragend="endDrag"
+        @dragleave="dropPosition = undefined"
         @dragover.prevent="dragOver"
         @drop.prevent.stop="drop"
         @keydown.left.prevent="emit('move', 'before')"
@@ -166,12 +168,25 @@ function dragStart(event: DragEvent) {
   columnDrag?.start(props.column.key, event);
 }
 function dragOver(event: DragEvent) {
-  if (!props.disabled && event.dataTransfer) event.dataTransfer.dropEffect = 'move';
+  if (!props.disabled && event.dataTransfer) {
+    event.dataTransfer.dropEffect = 'move';
+    dropPosition.value = positionAt(event);
+  }
+}
+const dropPosition = ref<'before' | 'after'>();
+function endDrag() {
+  dropPosition.value = undefined;
+  columnDrag?.clear();
+}
+function positionAt(event: DragEvent) {
+  const bounds = (event.currentTarget as HTMLElement).getBoundingClientRect();
+  return bounds.height > 0 && event.clientY >= bounds.top + bounds.height / 2 ? 'after' : 'before';
 }
 function drop(event: DragEvent) {
+  dropPosition.value = undefined;
   if (props.disabled) return;
   const key = columnDrag?.consume(event);
-  if (key) emit('drop', key, 'before');
+  if (key) emit('drop', key, positionAt(event));
 }
 </script>
 
@@ -196,6 +211,14 @@ function drop(event: DragEvent) {
 
 .ex-table-column-controls__drag {
   cursor: grab;
+}
+
+.ex-table-column-controls__drag[data-drop-position='before'] {
+  border-block-start-color: var(--ex-color-primary);
+}
+
+.ex-table-column-controls__drag[data-drop-position='after'] {
+  border-block-end-color: var(--ex-color-primary);
 }
 
 .ex-table-column-controls__resize {

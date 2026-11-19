@@ -140,6 +140,7 @@ const emit = defineEmits<ExBackTopEmits>();
 
 const rootRef = ref<HTMLButtonElement>();
 const isVisible = ref(false);
+let manualVisibility: boolean | undefined;
 const scrolling = ref(false);
 const scrollInfo = reactive<BackTopScrollInfo>({
   scrollTop: 0,
@@ -224,14 +225,17 @@ const computeVisible = (info: BackTopScrollInfo) =>
     ? info.scrollPercent >= normalizedVisibilityPercent.value
     : info.scrollTop >= normalizedVisibilityHeight.value;
 
-const update = () => {
-  if (!scrollTarget) return;
-  Object.assign(scrollInfo, getScrollInfo(scrollTarget));
-  const next = computeVisible(scrollInfo);
+const setVisibility = (next: boolean) => {
   if (next !== isVisible.value) {
     isVisible.value = next;
     emit('visibility-change', next);
   }
+};
+
+const update = () => {
+  if (!scrollTarget) return;
+  Object.assign(scrollInfo, getScrollInfo(scrollTarget));
+  setVisibility(manualVisibility ?? computeVisible(scrollInfo));
 };
 
 const onScroll = () => {
@@ -299,17 +303,13 @@ const handleClick = (event: MouseEvent) => {
 };
 
 const show = () => {
-  if (!isVisible.value) {
-    isVisible.value = true;
-    emit('visibility-change', true);
-  }
+  manualVisibility = true;
+  setVisibility(true);
 };
 
 const hide = () => {
-  if (isVisible.value) {
-    isVisible.value = false;
-    emit('visibility-change', false);
-  }
+  manualVisibility = false;
+  setVisibility(false);
 };
 
 // ---------------------------------------------------------------------------
@@ -319,6 +319,7 @@ watch(
   () => props.target,
   () => {
     if (!mounted) return;
+    manualVisibility = undefined;
     scrollAbortController?.abort();
     unbind();
     bind();
@@ -326,6 +327,7 @@ watch(
 );
 
 watch([normalizedVisibilityHeight, normalizedVisibilityPercent], () => {
+  manualVisibility = undefined;
   if (mounted) update();
 });
 

@@ -398,6 +398,7 @@ import {
   validatePreviewUrl,
 } from './preview-utils';
 import { usePreviewSources } from './usePreviewSources';
+import { addDecimal } from '../../utils/decimal';
 import type {
   ExFilePreviewEmits,
   ExFilePreviewExposed,
@@ -524,6 +525,14 @@ const imageStyle = computed(() => ({
   transform: `scale(${currentScale.value}) rotate(${currentRotate.value}deg)`,
 }));
 
+watch([currentIndex, () => currentFile.value?.url], (next, previous) => {
+  // 只在已展示文件实际切换时请求复位；等待父级确认导航不会改变旧图状态。
+  if (previous[1] === undefined || (next[0] === previous[0] && next[1] === previous[1])) return;
+  const initialScale = clampPreviewScale(1, scaleConfig.value);
+  if (currentScale.value !== initialScale) scaleState.request(initialScale);
+  if (currentRotate.value !== 0) rotateState.request(0);
+});
+
 const requestNavigation = (nextIndex: number): void => {
   const normalizedIndex = clampPreviewIndex(nextIndex, fileList.value.length);
   if (normalizedIndex === currentIndex.value) return;
@@ -543,8 +552,10 @@ const requestScale = (scale: number, force = false): void => {
   scaleState.request(normalizedScale);
 };
 
-const requestZoomIn = (): void => requestScale(currentScale.value + scaleConfig.value.step);
-const requestZoomOut = (): void => requestScale(currentScale.value - scaleConfig.value.step);
+const requestZoomIn = (): void =>
+  requestScale(addDecimal(currentScale.value, scaleConfig.value.step));
+const requestZoomOut = (): void =>
+  requestScale(addDecimal(currentScale.value, -scaleConfig.value.step));
 const requestResetZoom = (): void => requestScale(1, true);
 
 const requestRotation = (rotation: number, force = false): void => {
@@ -715,10 +726,20 @@ const displayTextLine = (line: string): string => line || '\u200b';
 const createTextTooLargeError = (): ExFilePreviewError =>
   new ExFilePreviewError('文本内容超过允许的最大字节数', { code: 'text-too-large' });
 
-const readBoundedText = async (response: Response, byteLimit: number): Promise<string> => {
-  const reader = response.body?.getReader();
+const readBoundedText = async (
+  response: Response,
+  byteLimit: number,
+  contentLength: number | null
+): Promise<string> => {
+  const reader = response.body?.getReader?.();
   if (!reader) {
-    throw createTextTooLargeError();
+    // Fetch 规范中的空 body 无内容；无流兼容实现必须先提供有界长度。
+    if (response.body === null && typeof Response !== 'undefined' && response instanceof Response)
+      return '';
+    if (contentLength === null || contentLength > byteLimit) throw createTextTooLargeError();
+    const value = await response.text();
+    if (new TextEncoder().encode(value).byteLength > byteLimit) throw createTextTooLargeError();
+    return value;
   }
 
   const decoder = new TextDecoder();
@@ -788,7 +809,7 @@ const loadTextContent = async (
       throw createTextTooLargeError();
     }
 
-    const content = await readBoundedText(response, byteLimit);
+    const content = await readBoundedText(response, byteLimit, contentLength);
     if (revision !== textRequestRevision || controller.signal.aborted) return;
     textContent.value = content;
     textState.value = 'ready';

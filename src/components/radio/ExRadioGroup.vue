@@ -10,7 +10,7 @@
   >
     <!-- 标签 -->
     <label
-      v-if="label || $slots.label"
+      v-if="hasGroupLabel"
       :id="labelId"
       class="ex-radio-group__label"
     >
@@ -37,7 +37,7 @@
     >
       <!-- 帮助文本 -->
       <div
-        v-if="helpText || $slots.help"
+        v-if="hasHelp"
         :id="`${groupId}-help`"
         class="ex-radio-group__help"
       >
@@ -84,6 +84,8 @@ import { generateId } from '../../utils/id';
 import { mergeAriaIds, useFormFieldState } from '../form/use-form-item';
 import { radioGroupContextKey } from './context';
 import { useControllableState } from '../../composables/useControllableState';
+import { useRenderComputed } from '../../composables/useRenderComputed';
+import { hasRenderableContent } from '../../utils/vnode';
 
 defineOptions({
   name: 'ExRadioGroup',
@@ -121,7 +123,12 @@ const { value: confirmedValue, request } = useControllableState<RadioValue | und
 const groupId = generateId('ex-radio-group');
 const labelId = `${groupId}-label`;
 const groupRef = ref<HTMLDivElement>();
-const hasGroupLabel = computed(() => Boolean(props.label || slots.label));
+const hasGroupLabel = useRenderComputed(
+  () => Boolean(props.label) || hasRenderableContent(slots.label?.())
+);
+const hasHelp = useRenderComputed(
+  () => Boolean(props.helpText) || hasRenderableContent(slots.help?.())
+);
 
 // 组内共享的 name：未显式传入时自动生成唯一值，保证同组各 radio 的
 // name 一致——原生单选语义（方向键导航、屏幕阅读器成组）才能生效。
@@ -138,18 +145,21 @@ watch(
 const nativeRestorers = new Set<() => void>();
 
 // 计算属性
-const showErrorMessage = computed(() => {
-  return Boolean(currentErrorMessage.value) || props.status === 'error';
+const showErrorMessage = useRenderComputed(() => {
+  return (
+    Boolean(currentErrorMessage.value) ||
+    (props.status === 'error' && hasRenderableContent(slots.error?.()))
+  );
 });
 
 const showBottomInfo = computed(() => {
-  return props.helpText || slots.help || showErrorMessage.value;
+  return hasHelp.value || showErrorMessage.value;
 });
 
 const ariaDescribedBy = computed(() => {
   const ids: string[] = [];
 
-  if (props.helpText || slots.help) {
+  if (hasHelp.value) {
     ids.push(`${groupId}-help`);
   }
 

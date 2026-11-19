@@ -15,7 +15,9 @@
       :aria-controls="treeId"
       :aria-expanded="visible"
       v-bind="fieldAriaAttrs"
-      :aria-label="ariaLabelledby ? undefined : ariaLabel || placeholder || t('placeholder')"
+      :aria-label="
+        fieldAriaAttrs['aria-labelledby'] ? undefined : ariaLabel || placeholder || t('placeholder')
+      "
       :tabindex="disabled ? undefined : 0"
       @click="handleTriggerClick"
       @keydown="handleKeydown"
@@ -36,6 +38,7 @@
               type="button"
               class="ex-tree-select__tag-close"
               :aria-label="t('removeTag')"
+              @mousedown.prevent
               @click.stop="removeTag(tag.value)"
             >
               ×
@@ -77,6 +80,7 @@
         type="button"
         class="ex-tree-select__clear"
         :aria-label="t('clear')"
+        @mousedown.prevent
         @click.stop="handleClear"
       >
         <ExIcon
@@ -228,21 +232,22 @@ const props = withDefaults(defineProps<ExTreeSelectProps>(), {
 });
 
 const emit = defineEmits<ExTreeSelectEmits>();
-const { value: currentValue, request: requestValue } = useControllableState<TreeSelectValue>({
-  controlledValue: () => props.modelValue,
-  defaultValue: () => (props.multiple ? [] : null),
-  clone: value => (Array.isArray(value) ? [...value] : value),
-  onChange: value => emit('update:modelValue', value),
-});
-
 const { t } = useLocale('treeSelect');
 const {
   formItem,
   disabled,
+  readonly,
   interactive,
   size: componentSize,
   ariaAttrs: fieldAriaAttrs,
 } = useFormFieldState(props);
+const { value: currentValue, request: requestValue } = useControllableState<TreeSelectValue>({
+  controlledValue: () => props.modelValue,
+  defaultValue: () => (props.multiple ? [] : null),
+  resetRevision: () => formItem?.resetRevision?.value,
+  clone: value => (Array.isArray(value) ? [...value] : value),
+  onChange: value => emit('update:modelValue', value),
+});
 const attrs = useAttrs();
 
 const rootRef = ref<HTMLElement>();
@@ -323,6 +328,8 @@ const rootClasses = computed(() => [
   {
     'is-disabled': disabled.value,
     'is-active': visible.value,
+    'is-readonly': readonly.value,
+    [`is-${formItem?.status?.value}`]: Boolean(formItem?.status?.value),
     'ex-tree-select--multiple': props.multiple,
   },
   ...normalizeCustomClass(props.class),

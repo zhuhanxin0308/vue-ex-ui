@@ -5,6 +5,28 @@ import ExTimeline from '../../../src/components/timeline/ExTimeline.vue';
 import ExTimelineItem from '../../../src/components/timeline/ExTimelineItem.vue';
 
 describe('时间线布局与动态内容', () => {
+  it('头部条件子项增删时既有项重新交替，独立时间戳插槽跨布局显示', async () => {
+    const before = ref(false);
+    const wrapper = mount({
+      components: { ExTimeline, ExTimelineItem },
+      setup: () => ({ before }),
+      template: `<ExTimeline mode="alternate">
+        <ExTimelineItem v-if="before" key="first">新增</ExTimelineItem>
+        <ExTimelineItem key="last"><template #timestamp><time>今日</time></template></ExTimelineItem>
+      </ExTimeline>`,
+    });
+    expect(wrapper.get('time').text()).toBe('今日');
+    before.value = true;
+    await nextTick();
+    await nextTick();
+    expect(wrapper.get('time').element.closest('.ex-timeline-item--right')).not.toBeNull();
+    before.value = false;
+    await nextTick();
+    await nextTick();
+    expect(wrapper.get('time').element.closest('.ex-timeline-item--right')).toBeNull();
+    wrapper.unmount();
+  });
+
   it.each(['vertical', 'horizontal'] as const)(
     '%s 布局保留完整时间戳、插槽与项目语义',
     async direction => {

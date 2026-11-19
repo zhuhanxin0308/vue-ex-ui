@@ -4,6 +4,23 @@ import { nextTick } from 'vue';
 import ExPagination from '../../../src/components/pagination/ExPagination.vue';
 
 const wrappers: Array<{ unmount(): void }> = [];
+it('无 ResizeObserver 时分页仍可用，空结果的跳转框不阻止查询表单提交', async () => {
+  vi.stubGlobal('ResizeObserver', undefined);
+  const form = document.createElement('form');
+  const wrapper = mount(ExPagination, {
+    attachTo: form,
+    props: { total: 0, showQuickJumper: true },
+  });
+  wrappers.push(wrapper);
+  const input = wrapper.get<HTMLInputElement>('input[type="number"]').element;
+  expect(input.disabled).toBe(true);
+  expect(Number(input.max)).toBeGreaterThanOrEqual(Number(input.min));
+  expect(form.checkValidity()).toBe(true);
+  await wrapper.setProps({ total: 30 });
+  expect(input.disabled).toBe(false);
+  expect(Number(input.max)).toBe(3);
+});
+
 let availableWidth: number;
 let itemWidth: number;
 const observers: Array<{ callback: ResizeObserverCallback; disconnect: ReturnType<typeof vi.fn> }> =

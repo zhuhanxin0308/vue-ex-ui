@@ -35,16 +35,20 @@ describe('Tabs 严格受控', () => {
     expect(wrapper.find('[aria-selected="true"]').exists()).toBe(false);
   });
 
-  it('点击、键盘和关闭均只请求切换，父级回写才更新选中项', async () => {
+  it('点击与键盘请求切换，父级保留面板时关闭请求不改变选中项', async () => {
     const wrapper = mount(ExTabs, { props: { modelValue: 'a', closable: true }, slots });
     wrappers.push(wrapper);
     const tabs = wrapper.findAll('[role="tab"]');
+    await tabs[0].trigger('click');
+    expect(wrapper.emitted('tab-click')).toHaveLength(1);
+    expect(wrapper.emitted('change')).toBeUndefined();
     await tabs[1].trigger('click');
     expect(tabs[0].attributes('aria-selected')).toBe('true');
     await tabs[0].trigger('keydown', { key: 'End' });
     expect(tabs[2].attributes('aria-selected')).toBe('false');
     await wrapper.findAll('.ex-tabs__tab-close')[0].trigger('click');
-    expect(wrapper.emitted('update:modelValue')).toEqual([['b'], ['c'], ['b']]);
+    expect(wrapper.emitted('tab-remove')).toEqual([['a']]);
+    expect(wrapper.emitted('update:modelValue')).toEqual([['b'], ['c']]);
     expect(tabs[0].attributes('aria-selected')).toBe('true');
     await wrapper.setProps({ modelValue: 'b' });
     expect(tabs[1].attributes('aria-selected')).toBe('true');

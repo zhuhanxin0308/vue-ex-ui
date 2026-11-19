@@ -112,6 +112,8 @@ export interface PopconfirmAsyncResult {
  * 气泡确认框组件属性
  */
 export interface ExPopconfirmProps {
+  /** 受控显示状态（v-model:visible）；undefined 使用组件内部状态。 */
+  visible?: boolean;
   /** 确认框标题 */
   title?: string;
   /** 确认框描述 */

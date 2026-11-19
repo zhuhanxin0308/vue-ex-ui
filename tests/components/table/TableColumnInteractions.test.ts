@@ -102,7 +102,8 @@ describe('Table 列宽与列顺序状态', () => {
 
   it('指针取消恢复初始宽度，卸载后不会再处理移动', () => {
     const { props, api, wrapper } = create();
-    const header = document.createElement('th');
+    const owner = document.implementation.createHTMLDocument();
+    const header = owner.createElement('th');
     header.getBoundingClientRect = () => ({ width: 100 }) as DOMRect;
     const pointer = (type: string, clientX: number) => {
       const event = new Event(type, { bubbles: true, cancelable: true });
@@ -110,13 +111,13 @@ describe('Table 列宽与列顺序状态', () => {
       return event as PointerEvent;
     };
     api.startResize(pointer('pointerdown', 100), props.columns[0]!, header);
-    document.dispatchEvent(pointer('pointermove', 150));
+    owner.dispatchEvent(pointer('pointermove', 150));
     expect(api.getColumnWidth(props.columns[0]!)).toBe(150);
-    document.dispatchEvent(pointer('pointercancel', 150));
+    owner.dispatchEvent(pointer('pointercancel', 150));
     expect(api.getColumnWidth(props.columns[0]!)).toBe(100);
     api.startResize(pointer('pointerdown', 100), props.columns[0]!, header);
     wrapper.unmount();
-    document.dispatchEvent(pointer('pointermove', 180));
+    owner.dispatchEvent(pointer('pointermove', 180));
     expect(api.resizingKey.value).toBeUndefined();
   });
 });

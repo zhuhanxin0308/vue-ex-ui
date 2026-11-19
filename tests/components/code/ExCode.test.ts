@@ -5,6 +5,25 @@ import ExCode from '../../../src/components/code/ExCode.vue';
 import type { ExCodeExposed } from '../../../src/components/code/types';
 
 describe('ExCode', () => {
+  it('按文本框换行坐标缩进 CRLF 代码，并显示独立操作插槽', async () => {
+    const wrapper = mount(ExCode, {
+      props: {
+        code: 'a\r\nb\r\nc',
+        editable: true,
+        tabSize: 2,
+        copyable: false,
+        showLanguage: false,
+      },
+      slots: { actions: () => h('button', '保存') },
+    });
+    const input = wrapper.get('textarea');
+    input.element.setSelectionRange(4, 4);
+    await input.trigger('keydown', { key: 'Tab' });
+    expect(wrapper.emitted('update:code')).toEqual([['a\nb\n  c']]);
+    expect(wrapper.get('.ex-code__actions').text()).toBe('保存');
+    wrapper.unmount();
+  });
+
   afterEach(() => {
     vi.restoreAllMocks();
   });

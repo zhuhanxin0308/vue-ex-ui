@@ -554,6 +554,8 @@ notification.config({
 | notification.closeAll()       | 关闭所有通知 | —                          | —                      |
 | notification.config(options)  | 配置全局选项 | `NotificationGlobalConfig` | —                      |
 
+单独关闭通知时，可以在 `onClose` 中使用原 ID 重开。调用 `closeAll()` 期间，同一服务会拒绝同步创建通知并抛出错误。服务会先清理全部通知，再向调用方报告未捕获的回调错误。`closeAll()` 结束后可以继续创建通知。
+
 ### NotificationOptions
 
 | 参数                     | 说明                                  | 类型            | 可选值                                            | 默认值    |

@@ -372,11 +372,13 @@ describe('ExNumberInput', () => {
 
   describe('输入验证', () => {
     it('应该过滤非法字符', async () => {
-      const input = wrapper.find('.ex-number-input__input');
-      await input.setValue('abc123');
-
-      const inputElement = input.element as HTMLInputElement;
-      expect(inputElement.value).toBe('123');
+      const input = wrapper.get('input');
+      input.element.value = 'abc123';
+      await input.trigger('input');
+      expect(input.element.value).toBe('123');
+      await input.trigger('change');
+      expect(wrapper.emitted('update:modelValue')).toEqual([[123]]);
+      expect(input.element.value).toBe('0');
     });
 
     it('应该允许负号', async () => {

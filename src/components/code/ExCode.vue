@@ -169,7 +169,7 @@
 <script setup lang="ts">
 import { normalizeCustomClass } from '../../composables/useCustomClass';
 import ExIcon from '../icon/ExIcon.vue';
-import { computed, nextTick, onBeforeUnmount, ref, useId, watch } from 'vue';
+import { computed, nextTick, onBeforeUnmount, ref, useId, useSlots, watch } from 'vue';
 import type { CSSProperties } from 'vue';
 import type { ExCodeProps, ExCodeEmits, ExCodeExposed } from './types';
 import { useI18n } from '../../locale';
@@ -179,6 +179,8 @@ import { normalizeLineNumber, normalizeTabSize, parseHighlightedLines } from './
 import { registerOverlayEscapeBoundary } from '../../composables/overlay-manager';
 import { isComposingKeyboardEvent } from '../../utils/keyboard';
 import { useControllableState } from '../../composables/useControllableState';
+import { useRenderComputed } from '../../composables/useRenderComputed';
+import { hasRenderableContent } from '../../utils/vnode';
 
 defineOptions({
   name: 'ExCode',
@@ -329,7 +331,14 @@ const languageLabel = computed(
   () => LANGUAGE_LABELS[props.language] || props.language.toUpperCase()
 );
 
-const hasHeader = computed(() => Boolean(props.filename) || props.showLanguage || props.copyable);
+const slots = useSlots();
+const hasHeader = useRenderComputed(
+  () =>
+    Boolean(props.filename) ||
+    props.showLanguage ||
+    props.copyable ||
+    hasRenderableContent(slots.actions?.())
+);
 
 const rootAriaLabel = computed(() => `${languageLabel.value} ${t('code.codeBlock')}`);
 const editorAriaLabel = computed(() => t('code.editor'));
@@ -518,7 +527,8 @@ const handleKeydown = (event: KeyboardEvent) => {
   event.preventDefault();
 
   const ta = event.target as HTMLTextAreaElement;
-  const value = currentCode.value;
+  // 文本框将 CRLF 规范成 LF，选区坐标与切片必须使用同一缓冲区。
+  const value = ta.value;
   const selStart = ta.selectionStart;
   const selEnd = ta.selectionEnd;
   const indent = ' '.repeat(normalizedTabSize.value);

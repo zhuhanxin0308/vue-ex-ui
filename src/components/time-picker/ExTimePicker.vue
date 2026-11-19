@@ -14,7 +14,7 @@
       aria-haspopup="dialog"
       :aria-expanded="visible"
       v-bind="fieldAriaAttrs"
-      :aria-label="ariaLabel || t('selectTime')"
+      :aria-label="fieldAriaAttrs['aria-labelledby'] ? undefined : ariaLabel || t('selectTime')"
       :aria-controls="panelId"
       :tabindex="disabled ? undefined : 0"
       @click="handleTriggerClick"
@@ -46,6 +46,7 @@
         type="button"
         class="ex-time-picker__clear"
         :aria-label="t('clear')"
+        @mousedown.prevent
         @click.stop="handleClear"
       >
         <ExIcon
@@ -262,24 +263,28 @@ const props = withDefaults(defineProps<ExTimePickerProps>(), {
 });
 
 const emit = defineEmits<ExTimePickerEmits>();
-const valueState = useControllableState<string>({
-  controlledValue: () => props.modelValue,
-  defaultValue: '',
-});
-const rangeState = useControllableState<TimePickerRange | null>({
-  controlledValue: () => props.rangeValue,
-  defaultValue: null,
-  clone: value => (Array.isArray(value) && value.length === 2 ? [...value] : null),
-});
-
 const { t } = useLocale('timePicker');
 const {
   formItem,
   disabled,
+  readonly,
   interactive,
   size: componentSize,
   ariaAttrs: fieldAriaAttrs,
 } = useFormFieldState(props);
+const resetRevision = () => formItem?.resetRevision?.value;
+const valueState = useControllableState<string>({
+  controlledValue: () => props.modelValue,
+  defaultValue: '',
+  resetRevision,
+});
+const rangeState = useControllableState<TimePickerRange | null>({
+  controlledValue: () => props.rangeValue,
+  defaultValue: null,
+  resetRevision,
+  clone: value => (Array.isArray(value) && value.length === 2 ? [...value] : null),
+});
+
 const attrs = useAttrs();
 
 const rootRef = ref<HTMLElement>();
@@ -362,6 +367,8 @@ const rootClasses = computed(() => [
   `ex-time-picker--${componentSize.value}`,
   {
     'is-disabled': disabled.value,
+    'is-readonly': readonly.value,
+    [`is-${formItem?.status?.value}`]: Boolean(formItem?.status?.value),
     'is-active': visible.value,
     'ex-time-picker--range': props.range,
   },
@@ -697,31 +704,20 @@ const handleTriggerClick = () => {
   else open();
 };
 
-const emitValue = () => {
-  if (!interactive.value || !isDraftSelectable.value) return;
+const updateRangeDraft = () => {
   if (props.range) {
     rangeDrafts[activeEndpoint.value] = { ...draft };
     rangeTouched[activeEndpoint.value] = true;
-    return;
   }
-  const value = formatTime(draft);
-  valueState.request(value);
-  emit('update:modelValue', value);
-  emit('change', value);
-  formItem?.onFieldChange();
 };
 
 const selectUnit = (unit: 'h' | 'm' | 's', value: number, disabled: boolean) => {
   if (!interactive.value || disabled) return;
   draft[unit] = value;
   const selectable = normalizeDependentUnits(unit);
-  if (props.range) {
-    // 即使下级没有可选时间也保留真实草稿，让确认状态反映当前编辑而非旧快照。
-    rangeDrafts[activeEndpoint.value] = { ...draft };
-    rangeTouched[activeEndpoint.value] = true;
-  }
+  // 即使下级没有可选时间也保留草稿，确认时统一判定并提交。
+  updateRangeDraft();
   if (!selectable) return;
-  emitValue();
   nextTick(scrollSelectedIntoView);
 };
 
@@ -737,7 +733,7 @@ const selectNow = () => {
   draft.h = selection.h;
   draft.m = selection.m;
   draft.s = selection.s;
-  emitValue();
+  updateRangeDraft();
   nextTick(scrollSelectedIntoView);
 };
 
@@ -748,8 +744,13 @@ const handleConfirm = () => {
     rangeState.request(value);
     emit('update:rangeValue', [...value]);
     emit('range-change', [...value]);
-    formItem?.onFieldChange();
-  } else emitValue();
+  } else {
+    const value = formatTime(draft);
+    valueState.request(value);
+    emit('update:modelValue', value);
+    emit('change', value);
+  }
+  formItem?.onFieldChange();
   close();
 };
 

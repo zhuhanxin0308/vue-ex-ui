@@ -170,11 +170,13 @@
 </template>
 
 <script setup lang="ts">
-import { computed, nextTick, ref, watch, type CSSProperties, type StyleValue } from 'vue';
+import { computed, nextTick, onMounted, ref, watch } from 'vue';
+import type { CSSProperties, StyleValue } from 'vue';
 import { normalizeCustomClass } from '../../composables/useCustomClass';
 import { useOverlay } from '../../composables/useOverlay';
 import { useViewportPosition } from '../../composables/useFloatingAutoUpdate';
 import { useLocale } from '../../locale';
+import { createDateFormatter } from '../../locale/date-formatter';
 import { computeFloatingPosition, type FloatingPlacement } from '../../utils/floating';
 import { generateId } from '../../utils/id';
 import {
@@ -282,15 +284,25 @@ const componentStyle = computed<CSSProperties>(
 );
 const heatmapStyles = computed<StyleValue>(() => [componentStyle.value, props.style]);
 
-const rangeResult = computed(() => resolveHeatmapRange(props.startDate, props.endDate));
-const rangeError = computed(() => !rangeResult.value.ok);
+// 无结束日期时延后至挂载读取本地今天，跨午夜水合时保留相同的初始标记。
+const today = ref<Date>();
+onMounted(() => {
+  today.value = new Date();
+});
+const rangeResult = computed(() =>
+  props.endDate === undefined && !today.value
+    ? undefined
+    : resolveHeatmapRange(props.startDate, props.endDate, today.value)
+);
+const rangeError = computed(() => rangeResult.value?.ok === false);
 const normalizedData = computed(() => normalizeHeatmapData(props.data));
-const hasCalendar = computed(() => rangeResult.value.ok && normalizedData.value.size > 0);
+const hasCalendar = computed(() => calendarWeeks.value.length > 0);
 
 const calendarWeeks = computed<HeatmapCalendarCell[][]>(() => {
   const result = rangeResult.value;
-  if (!result.ok || normalizedData.value.size === 0) return [];
-  return createHeatmapCalendar(normalizedData.value, result.range);
+  if (!result?.ok || normalizedData.value.size === 0) return [];
+  const weeks = createHeatmapCalendar(normalizedData.value, result.range);
+  return weeks.some(week => week.some(day => day.inRange && day.hasData)) ? weeks : [];
 });
 
 const visibleMaximum = computed(() =>
@@ -300,18 +312,15 @@ const visibleMaximum = computed(() =>
   )
 );
 
-const dateFormatter = computed(
-  () =>
-    new Intl.DateTimeFormat(locale.value, {
-      year: 'numeric',
-      month: 'long',
-      day: 'numeric',
-    })
+const dateFormatter = computed(() =>
+  createDateFormatter(locale.value, {
+    year: 'numeric',
+    month: 'long',
+    day: 'numeric',
+  })
 );
-const monthFormatter = computed(() => new Intl.DateTimeFormat(locale.value, { month: 'short' }));
-const weekdayFormatter = computed(
-  () => new Intl.DateTimeFormat(locale.value, { weekday: 'short' })
-);
+const monthFormatter = computed(() => createDateFormatter(locale.value, { month: 'short' }));
+const weekdayFormatter = computed(() => createDateFormatter(locale.value, { weekday: 'short' }));
 
 const viewWeeks = computed<HeatmapViewCell[][]>(() =>
   calendarWeeks.value.map(week =>
@@ -453,8 +462,9 @@ const handleCellKeydown = (day: HeatmapViewCell, event: KeyboardEvent) => {
   if (currentIndex < 0) return;
 
   let targetIndex: number | null = null;
-  if (event.key === 'ArrowUp') targetIndex = currentIndex - 1;
-  if (event.key === 'ArrowDown') targetIndex = currentIndex + 1;
+  const weekday = day.source.dateValue.getDay();
+  if (event.key === 'ArrowUp') targetIndex = weekday === 0 ? currentIndex : currentIndex - 1;
+  if (event.key === 'ArrowDown') targetIndex = weekday === 6 ? currentIndex : currentIndex + 1;
   if (event.key === 'ArrowLeft') targetIndex = currentIndex - 7;
   if (event.key === 'ArrowRight') targetIndex = currentIndex + 7;
   if (event.key === 'Home') {
@@ -469,6 +479,8 @@ const handleCellKeydown = (day: HeatmapViewCell, event: KeyboardEvent) => {
   if (targetIndex === null) return;
 
   event.preventDefault();
+  const outside = targetIndex < 0 || targetIndex >= interactiveCells.value.length;
+  if (event.key.startsWith('Arrow') && outside) return;
   focusCell(targetIndex);
 };
 

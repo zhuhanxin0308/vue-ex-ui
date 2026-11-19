@@ -6,12 +6,52 @@ import ExChart from '../../../src/components/chart/ExChart.vue';
 import ExConfigProvider from '../../../src/components/config-provider/ExConfigProvider.vue';
 import type { ChartOption, ExChartExposed } from '../../../src/components/chart/types';
 import type { Theme, ThemeVariables } from '../../../src/types/theme';
+import { getCurrentLocale, setLocale } from '../../../src/locale';
 
 enableAutoUnmount(afterEach);
 
 // 用真实 SVG 绘制与合并，仅提供 jsdom 缺少的字体测量。
 setPlatformAPI({ measureText: text => ({ width: text.length * 8 }) });
 const initOptions = { renderer: 'svg' as const, width: 640, height: 320 };
+
+it('切换语言不会向已经清空的实例插入工具栏', async () => {
+  const previousLocale = getCurrentLocale();
+  setLocale('zh-CN');
+  const { api, instance } = await mountThemedChart({}, true);
+  api.clear();
+  const update = vi.spyOn(instance, 'setOption');
+  try {
+    setLocale('en-US');
+    await nextTick();
+    expect(update).not.toHaveBeenCalled();
+  } finally {
+    update.mockRestore();
+    setLocale(previousLocale);
+  }
+});
+
+it('语言、主题切换只更新声明式工具栏，保留替换后的命令式配置', async () => {
+  const previousLocale = getCurrentLocale();
+  setLocale('zh-CN');
+  try {
+    const { api, instance, theme } = await mountThemedChart({}, true);
+    setLocale('en-US');
+    await nextTick();
+    const toolbox = () => instance.getOption().toolbox;
+    expect(toolbox()).toMatchObject([{ feature: { saveAsImage: { title: 'Save as Image' } } }]);
+    theme.value = 'neon-blue';
+    await nextTick();
+    expect(toolbox()).toMatchObject([{ feature: { saveAsImage: { title: 'Save as Image' } } }]);
+    api.setOption({ title: { text: '业务配置' } }, { notMerge: true });
+    const before = toolbox();
+    setLocale('zh-CN');
+    await nextTick();
+    expect(toolbox()).toEqual(before);
+    expect(api.getSvgDataURL({ backgroundColor: 'white' })).toContain('data:image/svg+xml');
+  } finally {
+    setLocale(previousLocale);
+  }
+});
 
 async function mountThemedChart(option: ChartOption, showToolbox = false) {
   const theme = ref<Theme>('light');
